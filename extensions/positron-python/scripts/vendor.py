@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import json
 import re
 import shlex
 import shutil
@@ -27,9 +26,7 @@ def main() -> None:
         base_directory=project_path,
         destination=Path("python_files/posit/positron/_vendor/"),
         namespace="positron._vendor",
-        requirements=Path(
-            "python_files/jedilsp_requirements/requirements.txt"
-        ),
+        requirements=Path("python_files/jedilsp_requirements/requirements.txt"),
         patches_dir=Path("scripts/patches"),
         substitutions=[
             # Fix pygments.lexers._mapping strings, via: https://github.com/pypa/pip/blob/main/pyproject.toml
@@ -62,13 +59,17 @@ def main() -> None:
             "install",
             "-t",
             str(cfg.destination),
-            "--no-cache-dir",
-            "--implementation",
-            "py",
+            # TODO: Commented this for faster iteration while developing.
+            # "--no-cache-dir",
+            # TODO: Trying to drop this to see if it fixes pyzmq at least on macos
+            # "--implementation",
+            # "py",
             "--no-deps",
             "--require-hashes",
-            "--only-binary",
-            ":all:",
+            # TODO: Commented this so that psutil installs. Does it not have wheels though?
+            # TODO: Might not need to remove this if we remove --implementation py too.
+            # "--only-binary",
+            # ":all:",
             "-r",
             str(cfg.requirements),
         ],
@@ -93,8 +94,22 @@ def main() -> None:
                     "--verbose",
                     str(patch_file),
                 ],
-                cwd=cfg.base_directory,
+                cwd=str(cfg.base_directory),
             )
+
+    # Delete unneeded files, so we don't need to patch them.
+    for p in [
+        "Cython/Build/Tests",
+        "Cython/Compiler/Tests",
+        "Cython/Debugger/Tests",
+        "Cython/Tests",
+        "IPython/core/tests",
+        "IPython/lib/tests",
+        "psutil/tests",
+        "tornado/test",
+        "zmq/tests",
+    ]:
+        shutil.rmtree(cfg.destination / p)
 
     # Rewrite the imports to reference the parent namespace.
     print("Rewrite imports")
@@ -153,9 +168,7 @@ def run(args: List[str], cwd: Optional[str] = None) -> None:
         if retcode is not None:
             break
     if retcode:
-        raise VendoringError(
-            f"Command exited with non-zero exit code: {retcode}"
-        )
+        raise VendoringError(f"Command exited with non-zero exit code: {retcode}")
 
 
 def detect_vendored_libs(destination: Path) -> List[str]:
@@ -192,6 +205,7 @@ def rewrite_file_imports(
 ) -> None:
     """Rewrite 'import xxx' and 'from xxx import' for vendored_libs."""
 
+    print(f"Rewriting imports in {item}")
     text = item.read_text(encoding="utf-8")
 
     # Configurable rewriting of lines.

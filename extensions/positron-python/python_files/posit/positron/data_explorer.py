@@ -19,8 +19,7 @@ from typing import (
     Tuple,
 )
 
-import comm
-
+from ._vendor import comm
 from .access_keys import decode_access_key
 from .data_explorer_comm import (
     ArraySelection,

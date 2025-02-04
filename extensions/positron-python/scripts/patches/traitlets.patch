@@ -1,0 +1,16 @@
+diff --git a/extensions/positron-python/python_files/posit/positron/_vendor/traitlets/utils/importstring.py b/extensions/positron-python/python_files/posit/positron/_vendor/traitlets/utils/importstring.py
+index 203f79f05..3990a8b58 100644
+--- a/extensions/positron-python/python_files/posit/positron/_vendor/traitlets/utils/importstring.py
++++ b/extensions/positron-python/python_files/posit/positron/_vendor/traitlets/utils/importstring.py
+@@ -30,7 +30,10 @@ def import_item(name: str) -> Any:
+     if len(parts) == 2:
+         # called with 'foo.bar....'
+         package, obj = parts
+-        module = __import__(package, fromlist=[obj])
++        try:
++            module = __import__("positron._vendor." + package, fromlist=[obj])
++        except ModuleNotFoundError as e:
++            module = __import__(package, fromlist=[obj])
+         try:
+             pak = getattr(module, obj)
+         except AttributeError as e:

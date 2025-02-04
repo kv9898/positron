@@ -14,9 +14,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type, Union, cast
 
-from comm.base_comm import BaseComm
-
 from ._vendor import attrs, cattrs
+from ._vendor.comm.base_comm import BaseComm
 from ._vendor.jedi.api import Interpreter, Project, Script
 from ._vendor.jedi.api.classes import Completion
 from ._vendor.jedi_language_server import jedi_utils, pygls_utils

@@ -1,0 +1,76 @@
+diff --git a/extensions/positron-python/python_files/posit/positron/_vendor/IPython/core/completer.py b/extensions/positron-python/python_files/posit/positron/_vendor/IPython/core/completer.py
+index 01af0bc88..6ef59d9ab 100644
+--- a/extensions/positron-python/python_files/posit/positron/_vendor/IPython/core/completer.py
++++ b/extensions/positron-python/python_files/posit/positron/_vendor/IPython/core/completer.py
+@@ -249,8 +249,8 @@ __skip_doctest__ = True
+ try:
+     import jedi
+     jedi.settings.case_insensitive_completion = False
+-    import jedi.api.helpers
+-    import jedi.api.classes
++    from jedi.api import helpers
++    from jedi.api import classes
+     JEDI_INSTALLED = True
+ except ImportError:
+     JEDI_INSTALLED = False
+diff --git a/extensions/positron-python/python_files/posit/positron/_vendor/IPython/core/interactiveshell.py b/extensions/positron-python/python_files/posit/positron/_vendor/IPython/core/interactiveshell.py
+index 7392de7c0..3afce6dbf 100644
+--- a/extensions/positron-python/python_files/posit/positron/_vendor/IPython/core/interactiveshell.py
++++ b/extensions/positron-python/python_files/posit/positron/_vendor/IPython/core/interactiveshell.py
+@@ -56,7 +56,7 @@ from traitlets import (
+ from traitlets.config.configurable import SingletonConfigurable
+ from traitlets.utils.importstring import import_item
+
+-import IPython.core.hooks
++from IPython.core import hooks as ipython_core_hooks
+ from IPython.core import magic, oinspect, page, prefilter, ultratb
+ from IPython.core.alias import Alias, AliasManager
+ from IPython.core.autocall import ExitAutocall
+@@ -950,7 +950,7 @@ class InteractiveShell(SingletonConfigurable):
+         self.strdispatchers = {}
+
+         # Set all default hooks, defined in the IPython.hooks module.
+-        hooks = IPython.core.hooks
++        hooks = ipython_core_hooks
+         for hook_name in hooks.__all__:
+             # default hooks have priority 100, i.e. low; user hooks should have
+             # 0-100 priority
+@@ -985,12 +985,12 @@ class InteractiveShell(SingletonConfigurable):
+             return
+
+         dp = getattr(self.hooks, name, None)
+-        if name not in IPython.core.hooks.__all__:
++        if name not in ipython_core_hooks.__all__:
+             print("Warning! Hook '%s' is not one of %s" % \
+-                  (name, IPython.core.hooks.__all__ ))
++                  (name, ipython_core_hooks.__all__ ))
+
+-        if name in IPython.core.hooks.deprecated:
+-            alternative = IPython.core.hooks.deprecated[name]
++        if name in ipython_core_hooks.deprecated:
++            alternative = ipython_core_hooks.deprecated[name]
+             raise ValueError(
+                 "Hook {} has been deprecated since IPython 5.0. Use {} instead.".format(
+                     name, alternative
+@@ -998,7 +998,7 @@ class InteractiveShell(SingletonConfigurable):
+             )
+
+         if not dp:
+-            dp = IPython.core.hooks.CommandChainDispatcher()
++            dp = ipython_core_hooks.CommandChainDispatcher()
+
+         try:
+             dp.add(f,priority)
+diff --git a/extensions/positron-python/python_files/posit/positron/_vendor/IPython/core/interactiveshell.py b/extensions/positron-python/python_files/posit/positron/_vendor/IPython/core/interactiveshell.py
+index f042af91e57..11afc62d7e9 100644
+--- a/extensions/positron-python/python_files/posit/positron/_vendor/IPython/core/interactiveshell.py
++++ b/extensions/positron-python/python_files/posit/positron/_vendor/IPython/core/interactiveshell.py
+@@ -3661,7 +3661,7 @@ class InteractiveShell(SingletonConfigurable):
+         if not _matplotlib_manages_backends() and gui in (None, "auto"):
+             # Early import of backend_inline required for its side effect of
+             # calling _enable_matplotlib_integration()
+-            import matplotlib_inline.backend_inline
++            from matplotlib_inline import backend_inline
+ 
+         from IPython.core import pylabtools as pt
+         gui, backend = pt.find_gui_and_backend(gui, self.pylab_gui_select)

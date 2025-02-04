@@ -1,0 +1,51 @@
+diff --git a/extensions/positron-python/python_files/posit/positron/_vendor/Cython/Debugger/libcython.py b/extensions/positron-python/python_files/posit/positron/_vendor/Cython/Debugger/libcython.py
+index 0f79dba2a5b..6de2baf3bb2 100644
+--- a/extensions/positron-python/python_files/posit/positron/_vendor/Cython/Debugger/libcython.py
++++ b/extensions/positron-python/python_files/posit/positron/_vendor/Cython/Debugger/libcython.py
+@@ -45,8 +45,8 @@ except ImportError:
+                 import elementtree.ElementTree as etree
+ 
+ try:
+-    import pygments.lexers
+-    import pygments.formatters
++    from pygments import lexers as pygments_lexers
++    from pygments import formatters as pygments_formatters
+ except ImportError:
+     pygments = None
+     sys.stderr.write("Install pygments for colorized source code.\n")
+@@ -242,7 +242,7 @@ class CythonBase(object):
+             assert filename == filename_and_lineno[0]
+             lineno = filename_and_lineno[1]
+             if pygments:
+-                lexer = pygments.lexers.CythonLexer(stripall=False)
++                lexer = pygments_lexers.CythonLexer(stripall=False)
+         elif self.is_python_function(frame):
+             pyframeobject = libpython.Frame(frame).get_pyop()
+ 
+@@ -254,7 +254,7 @@ class CythonBase(object):
+             lineno = pyframeobject.current_line_num()
+ 
+             if pygments:
+-                lexer = pygments.lexers.PythonLexer(stripall=False)
++                lexer = pygments_lexers.PythonLexer(stripall=False)
+         else:
+             symbol_and_line_obj = frame.find_sal()
+             if not symbol_and_line_obj or not symbol_and_line_obj.symtab:
+@@ -264,7 +264,7 @@ class CythonBase(object):
+                 filename = symbol_and_line_obj.symtab.fullname()
+                 lineno = symbol_and_line_obj.line
+                 if pygments:
+-                    lexer = pygments.lexers.CLexer(stripall=False)
++                    lexer = pygments_lexers.CLexer(stripall=False)
+ 
+         return SourceFileDescriptor(filename, lexer), lineno
+ 
+@@ -424,7 +424,7 @@ class SourceFileDescriptor(object):
+         if pygments and self.lexer and parameters.colorize_code:
+             bg = parameters.terminal_background.value
+             if self.formatter is None:
+-                formatter = pygments.formatters.TerminalFormatter(bg=bg)
++                formatter = pygments_formatters.TerminalFormatter(bg=bg)
+             else:
+                 formatter = self.formatter
+ 

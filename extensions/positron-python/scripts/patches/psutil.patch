@@ -1,0 +1,16 @@
+diff --git a/extensions/positron-python/python_files/posit/positron/_vendor/psutil/__init__.py b/extensions/positron-python/python_files/posit/positron/_vendor/psutil/__init__.py
+index 56483393827..c37b4fd334c 100644
+--- a/extensions/positron-python/python_files/posit/positron/_vendor/psutil/__init__.py
++++ b/extensions/positron-python/python_files/posit/positron/_vendor/psutil/__init__.py
+@@ -2398,9 +2398,9 @@ def _set_debug(value):
+     """Enable or disable PSUTIL_DEBUG option, which prints debugging
+     messages to stderr.
+     """
+-    import psutil._common
++    from psutil import _common
+ 
+-    psutil._common.PSUTIL_DEBUG = bool(value)
++    _common.PSUTIL_DEBUG = bool(value)
+     _psplatform.cext.set_debug(bool(value))
+ 
+ 

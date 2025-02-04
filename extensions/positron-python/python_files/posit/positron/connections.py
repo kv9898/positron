@@ -9,8 +9,7 @@ import logging
 import uuid
 from typing import TYPE_CHECKING, Any, Tuple, TypedDict
 
-import comm
-
+from ._vendor import comm
 from .access_keys import decode_access_key, encode_access_key
 from .connections_comm import (
     ConnectionsBackendMessageContent,
@@ -31,8 +30,8 @@ if TYPE_CHECKING:
     import sqlite3
 
     import sqlalchemy
-    from comm.base_comm import BaseComm
 
+    from ._vendor.comm.base_comm import BaseComm
     from .positron_ipkernel import PositronIPyKernel
 
 

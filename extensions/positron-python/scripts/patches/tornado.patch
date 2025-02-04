@@ -1,0 +1,50 @@
+diff --git a/extensions/positron-python/python_files/posit/positron/_vendor/tornado/log.py b/extensions/positron-python/python_files/posit/positron/_vendor/tornado/log.py
+index 869989613..f9baef55e 100644
+--- a/extensions/positron-python/python_files/posit/positron/_vendor/tornado/log.py
++++ b/extensions/positron-python/python_files/posit/positron/_vendor/tornado/log.py
+@@ -221,9 +221,7 @@ def enable_pretty_logging(
+     and `tornado.options.parse_config_file`.
+     """
+     if options is None:
+-        import tornado.options
+-
+-        options = tornado.options.options
++        from tornado.options import options
+     if options.logging is None or options.logging.lower() == "none":
+         return
+     if logger is None:
+@@ -273,9 +271,7 @@ def define_logging_options(options: Any = None) -> None:
+     """
+     if options is None:
+         # late import to prevent cycle
+-        import tornado.options
+-
+-        options = tornado.options.options
++        from tornado.options import options
+     options.define(
+         "logging",
+         default="info",
+diff --git a/extensions/positron-python/python_files/posit/positron/_vendor/tornado/autoreload.py b/extensions/positron-python/python_files/posit/positron/_vendor/tornado/autoreload.py
+index c6a6e82da..46b6af7f5 100644
+--- a/extensions/positron-python/python_files/posit/positron/_vendor/tornado/autoreload.py
++++ b/extensions/positron-python/python_files/posit/positron/_vendor/tornado/autoreload.py
+@@ -265,15 +265,15 @@ def main() -> None:
+     # parsing at the first positional argument. optparse supports
+     # this but as far as I can tell argparse does not.
+     import optparse
+-    import tornado.autoreload
++    from tornado import autoreload as tornado_autoreload
+
+     global _autoreload_is_main
+     global _original_argv, _original_spec
+-    tornado.autoreload._autoreload_is_main = _autoreload_is_main = True
++    tornado_autoreload._autoreload_is_main = _autoreload_is_main = True
+     original_argv = sys.argv
+-    tornado.autoreload._original_argv = _original_argv = original_argv
++    tornado_autoreload._original_argv = _original_argv = original_argv
+     original_spec = getattr(sys.modules["__main__"], "__spec__", None)
+-    tornado.autoreload._original_spec = _original_spec = original_spec
++    tornado_autoreload._original_spec = _original_spec = original_spec
+
+     parser = optparse.OptionParser(
+         prog="python -m tornado.autoreload",

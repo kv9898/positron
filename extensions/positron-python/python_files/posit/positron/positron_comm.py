@@ -10,8 +10,6 @@ import logging
 import threading
 from typing import TYPE_CHECKING, Callable, Generic, TypeVar
 
-import comm
-
 from . import (
     connections_comm,
     data_explorer_comm,
@@ -20,6 +18,7 @@ from . import (
     ui_comm,
     variables_comm,
 )
+from ._vendor import comm
 from ._vendor.pydantic import ValidationError
 from ._vendor.pydantic.generics import GenericModel
 

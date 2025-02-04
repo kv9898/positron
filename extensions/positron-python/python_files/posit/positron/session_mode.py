@@ -5,7 +5,7 @@
 
 import enum
 
-import traitlets
+from ._vendor import traitlets
 
 
 class SessionMode(str, enum.Enum):

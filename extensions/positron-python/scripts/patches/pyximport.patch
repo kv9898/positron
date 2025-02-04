@@ -1,0 +1,26 @@
+diff --git a/extensions/positron-python/python_files/posit/positron/_vendor/pyximport/_pyximport3.py b/extensions/positron-python/python_files/posit/positron/_vendor/pyximport/_pyximport3.py
+index 94f7d9dc09c..e3903c9c94b 100644
+--- a/extensions/positron-python/python_files/posit/positron/_vendor/pyximport/_pyximport3.py
++++ b/extensions/positron-python/python_files/posit/positron/_vendor/pyximport/_pyximport3.py
+@@ -434,7 +434,7 @@ def install(pyximport=True, pyimport=False, build_dir=None, build_in_temp=True,
+         py_importer = PyImportMetaFinder(pyxbuild_dir=build_dir, inplace=inplace,
+                                          language_level=language_level)
+         # make sure we import Cython before we install the import hook
+-        import Cython.Compiler.Main, Cython.Compiler.Pipeline, Cython.Compiler.Optimize
++        from Cython.Compiler import Main, Pipeline, Optimize
+         sys.meta_path.insert(0, py_importer)
+ 
+     if pyximport and not has_pyx_importer:
+diff --git a/extensions/positron-python/python_files/posit/positron/_vendor/pyximport/_pyximport2.py b/extensions/positron-python/python_files/posit/positron/_vendor/pyximport/_pyximport2.py
+index 8349f97a136..ce1aa2193c6 100644
+--- a/extensions/positron-python/python_files/posit/positron/_vendor/pyximport/_pyximport2.py
++++ b/extensions/positron-python/python_files/posit/positron/_vendor/pyximport/_pyximport2.py
+@@ -576,7 +576,7 @@ def install(pyximport=True, pyimport=False, build_dir=None, build_in_temp=True,
+         py_importer = PyImporter(pyxbuild_dir=build_dir, inplace=inplace,
+                                  language_level=language_level)
+         # make sure we import Cython before we install the import hook
+-        import Cython.Compiler.Main, Cython.Compiler.Pipeline, Cython.Compiler.Optimize
++        from Cython.Compiler import Main, Pipeline, Optimize
+         sys.meta_path.insert(0, py_importer)
+ 
+     if pyximport and not has_pyx_importer:

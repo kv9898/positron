@@ -10,9 +10,9 @@ from typing import Any, cast
 from unittest.mock import Mock
 
 import pytest
-from ipykernel.compiler import get_tmp_directory
-from IPython.utils.syspathcontext import prepended_to_syspath
 
+from positron._vendor.ipykernel.compiler import get_tmp_directory
+from positron._vendor.IPython.utils.syspathcontext import prepended_to_syspath
 from positron.access_keys import encode_access_key
 from positron.help import help  # noqa: A004
 from positron.session_mode import SessionMode

@@ -44,8 +44,7 @@ if TYPE_CHECKING:
     import asyncio
     from collections.abc import Iterable, Mapping
 
-    from comm.base_comm import BaseComm
-
+    from ._vendor.comm.base_comm import BaseComm
     from .positron_ipkernel import PositronIPyKernel
 
 logger = logging.getLogger(__name__)

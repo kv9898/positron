@@ -1,0 +1,121 @@
+diff --git a/extensions/positron-python/python_files/posit/positron/_vendor/zmq/auth/thread.py b/extensions/positron-python/python_files/posit/positron/_vendor/zmq/auth/thread.py
+index 378b8fdea..1aa28ca67 100644
+--- a/extensions/positron-python/python_files/posit/positron/_vendor/zmq/auth/thread.py
++++ b/extensions/positron-python/python_files/posit/positron/_vendor/zmq/auth/thread.py
+@@ -11,7 +11,7 @@ from threading import Event, Thread
+ from typing import Any, List, Optional
+
+ import zmq
+-import zmq.asyncio
++from zmq import asyncio as zmq_asyncio
+
+ from .base import Authenticator
+
+@@ -25,7 +25,7 @@ class AuthenticationThread(Thread):
+     pipe: zmq.Socket
+     loop: asyncio.AbstractEventLoop
+     authenticator: Authenticator
+-    poller: Optional[zmq.asyncio.Poller] = None
++    poller: Optional[zmq_asyncio.Poller] = None
+
+     def __init__(
+         self,
+@@ -53,7 +53,7 @@ class AuthenticationThread(Thread):
+             loop.close()
+
+     async def _run(self):
+-        self.poller = zmq.asyncio.Poller()
++        self.poller = zmq_asyncio.Poller()
+         self.poller.register(self.pipe, zmq.POLLIN)
+         self.poller.register(self.authenticator.zap_socket, zmq.POLLIN)
+         self.started.set()
+diff --git a/extensions/positron-python/python_files/posit/positron/_vendor/zmq/utils/monitor.py b/extensions/positron-python/python_files/posit/positron/_vendor/zmq/utils/monitor.py
+index f549052b5d2..853901f0462 100644
+--- a/extensions/positron-python/python_files/posit/positron/_vendor/zmq/utils/monitor.py
++++ b/extensions/positron-python/python_files/posit/positron/_vendor/zmq/utils/monitor.py
+@@ -9,7 +9,7 @@ import struct
+ from typing import Awaitable, overload
+ 
+ import zmq
+-import zmq.asyncio
++from zmq import asyncio as zmq_asyncio
+ from zmq._typing import TypedDict
+ from zmq.error import _check_version
+ 
+@@ -67,7 +67,7 @@ async def _parse_monitor_msg_async(
+ 
+ @overload
+ def recv_monitor_message(
+-    socket: zmq.asyncio.Socket,
++    socket: zmq_asyncio.Socket,
+     flags: int = 0,
+ ) -> Awaitable[_MonitorMessage]: ...
+ 
+
+diff --git a/extensions/positron-python/python_files/posit/positron/_vendor/zmq/backend/cffi/message.py b/extensions/positron-python/python_files/posit/positron/_vendor/zmq/backend/cffi/message.py
+index eb0a140f5..5209f7a3a 100644
+--- a/extensions/positron-python/python_files/posit/positron/_vendor/zmq/backend/cffi/message.py
++++ b/extensions/positron-python/python_files/posit/positron/_vendor/zmq/backend/cffi/message.py
+@@ -7,7 +7,7 @@ import errno
+ from threading import Event
+ 
+ import zmq
+-import zmq.error
++from zmq import error as zmq_error
+ from zmq.constants import ETERM
+ 
+ from ._cffi import ffi
+@@ -34,13 +34,13 @@ def _check_rc(rc):
+     err = C.zmq_errno()
+     if rc == -1:
+         if err == errno.EINTR:
+-            raise zmq.error.InterrruptedSystemCall(err)
++            raise zmq_error.InterrruptedSystemCall(err)
+         elif err == errno.EAGAIN:
+-            raise zmq.error.Again(errno)
++            raise zmq_error.Again(errno)
+         elif err == ETERM:
+-            raise zmq.error.ContextTerminated(err)
++            raise zmq_error.ContextTerminated(err)
+         else:
+-            raise zmq.error.ZMQError(err)
++            raise zmq_error.ZMQError(err)
+     return 0
+ 
+ 
+diff --git a/extensions/positron-python/python_files/posit/positron/_vendor/zmq/eventloop/zmqstream.py b/extensions/positron-python/python_files/posit/positron/_vendor/zmq/eventloop/zmqstream.py
+index 3291f15793a..9a3a6da2a09 100644
+--- a/extensions/positron-python/python_files/posit/positron/_vendor/zmq/eventloop/zmqstream.py
++++ b/extensions/positron-python/python_files/posit/positron/_vendor/zmq/eventloop/zmqstream.py
+@@ -23,7 +23,7 @@ from tornado.ioloop import IOLoop
+ from tornado.log import gen_log
+ 
+ import zmq
+-import zmq._future
++from zmq import _future as zmq__future
+ from zmq import POLLIN, POLLOUT
+ from zmq._typing import Literal
+ from zmq.utils import jsonapi
+@@ -96,7 +96,7 @@ class ZMQStream:
+     _fd: int
+ 
+     def __init__(self, socket: zmq.Socket, io_loop: IOLoop | None = None):
+-        if isinstance(socket, zmq._future._AsyncSocket):
++        if isinstance(socket, zmq__future._AsyncSocket):
+             warnings.warn(
+                 f"""ZMQStream only supports the base zmq.Socket class.
+ 
+
+diff --git a/extensions/positron-python/python_files/posit/positron/_vendor/zmq/backend/select.py b/extensions/positron-python/python_files/posit/positron/_vendor/zmq/backend/select.py
+index a377321ca9c..9619e99436c 100644
+--- a/extensions/positron-python/python_files/posit/positron/_vendor/zmq/backend/select.py
++++ b/extensions/positron-python/python_files/posit/positron/_vendor/zmq/backend/select.py
+@@ -28,6 +28,7 @@ public_api = [
+ def select_backend(name: str) -> Dict:
+     """Select the pyzmq backend"""
+     try:
++        name = f"positron._vendor.{name}"
+         mod = import_module(name)
+     except ImportError:
+         raise
+

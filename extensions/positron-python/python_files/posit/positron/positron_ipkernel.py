@@ -15,18 +15,16 @@ import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Container, cast
 
-import psutil
-import traitlets
-from ipykernel.compiler import get_tmp_directory
-from ipykernel.ipkernel import IPythonKernel
-from ipykernel.kernelapp import IPKernelApp
-from ipykernel.zmqshell import ZMQDisplayPublisher, ZMQInteractiveShell
-from IPython.core import magic_arguments, oinspect, page
-from IPython.core.error import UsageError
-from IPython.core.interactiveshell import ExecutionInfo, InteractiveShell
-from IPython.core.magic import Magics, MagicsManager, line_magic, magics_class
-from IPython.utils import PyColorize
-
+from ._vendor import psutil, traitlets
+from ._vendor.ipykernel.compiler import get_tmp_directory
+from ._vendor.ipykernel.ipkernel import IPythonKernel
+from ._vendor.ipykernel.kernelapp import IPKernelApp
+from ._vendor.ipykernel.zmqshell import ZMQDisplayPublisher, ZMQInteractiveShell
+from ._vendor.IPython.core import magic_arguments, oinspect, page
+from ._vendor.IPython.core.error import UsageError
+from ._vendor.IPython.core.interactiveshell import ExecutionInfo, InteractiveShell
+from ._vendor.IPython.core.magic import Magics, MagicsManager, line_magic, magics_class
+from ._vendor.IPython.utils import PyColorize
 from .access_keys import encode_access_key
 from .connections import ConnectionsService
 from .data_explorer import DataExplorerService
@@ -41,7 +39,7 @@ from .utils import BackgroundJobQueue, JsonRecord, get_qualname
 from .variables import VariablesService
 
 if TYPE_CHECKING:
-    from ipykernel.comm.manager import CommManager
+    from ._vendor.ipykernel.comm.manager import CommManager
 
 
 class _CommTarget(str, enum.Enum):
