@@ -78,7 +78,7 @@ if __name__ == "__main__":
     # Start the debugpy debugger if a port was specified
     if args.debugport is not None:
         try:
-            import debugpy
+            from positron._vendor import debugpy
 
             debugpy.listen(args.debugport)
         except Exception as error:

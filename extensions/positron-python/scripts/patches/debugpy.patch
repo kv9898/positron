@@ -1,0 +1,45 @@
+diff --git a/extensions/positron-python/python_files/posit/positron/_vendor/debugpy/server/__init__.py b/extensions/positron-python/python_files/posit/positron/_vendor/debugpy/server/__init__.py
+index 2cf1a9bcf..420a17f1b 100644
+--- a/extensions/positron-python/python_files/posit/positron/_vendor/debugpy/server/__init__.py
++++ b/extensions/positron-python/python_files/posit/positron/_vendor/debugpy/server/__init__.py
+@@ -4,4 +4,4 @@
+ 
+ # "force_pydevd" must be imported first to ensure (via side effects)
+ # that the debugpy-vendored copy of pydevd gets used.
+-import debugpy._vendored.force_pydevd  # noqa
++from debugpy._vendored import force_pydevd  # noqa
+diff --git a/extensions/positron-python/python_files/posit/positron/_vendor/debugpy/server/attach_pid_injected.py b/extensions/positron-python/python_files/posit/positron/_vendor/debugpy/server/attach_pid_injected.py
+index baadce62b..e810f839b 100644
+--- a/extensions/positron-python/python_files/posit/positron/_vendor/debugpy/server/attach_pid_injected.py
++++ b/extensions/positron-python/python_files/posit/positron/_vendor/debugpy/server/attach_pid_injected.py
+@@ -56,7 +56,7 @@ def attach(setup):
+         sys.path.insert(0, _debugpy_dir)
+         try:
+             import debugpy
+-            import debugpy.server
++            from debugpy import server
+             from debugpy.common import json, log
+             import pydevd
+         finally:
+diff --git a/extensions/positron-python/python_files/posit/positron/_vendor/debugpy/server/cli.py b/extensions/positron-python/python_files/posit/positron/_vendor/debugpy/server/cli.py
+index 5e0520da841..2ddcd9a5f3c 100644
+--- a/extensions/positron-python/python_files/posit/positron/_vendor/debugpy/server/cli.py
++++ b/extensions/positron-python/python_files/posit/positron/_vendor/debugpy/server/cli.py
+@@ -19,7 +19,7 @@ import pydevd
+ from _pydevd_bundle import pydevd_runpy as runpy
+ 
+ import debugpy
+-import debugpy.server
++from debugpy import server
+ from debugpy.common import log
+ from debugpy.server import api
+ 
+@@ -406,7 +406,7 @@ def attach_to_pid():
+ 
+     encode = lambda s: list(bytearray(s.encode("utf-8"))) if s is not None else None
+ 
+-    script_dir = os.path.dirname(debugpy.server.__file__)
++    script_dir = os.path.dirname(server.__file__)
+     assert os.path.exists(script_dir)
+     script_dir = encode(script_dir)
+ 

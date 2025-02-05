@@ -9,10 +9,10 @@ from unittest.mock import MagicMock, Mock
 
 import comm
 import pytest
-from jupyter_client.session import Session
-from traitlets.config import Config
 
 import positron.utils as utils
+from positron._vendor.jupyter_client.session import Session
+from positron._vendor.traitlets.config import Config
 from positron.connections import ConnectionsService
 from positron.positron_ipkernel import (
     PositronIPKernelApp,

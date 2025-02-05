@@ -1,0 +1,140 @@
+diff --git a/extensions/positron-python/python_files/posit/positron/_vendor/ipykernel/_eventloop_macos.py b/extensions/positron-python/python_files/posit/positron/_vendor/ipykernel/_eventloop_macos.py
+index 3a6692fce..b390196c8 100644
+--- a/extensions/positron-python/python_files/posit/positron/_vendor/ipykernel/_eventloop_macos.py
++++ b/extensions/positron-python/python_files/posit/positron/_vendor/ipykernel/_eventloop_macos.py
+@@ -7,10 +7,10 @@ Calls NSApp / CoreFoundation APIs via ctypes.
+ # obj-c boilerplate from appnope, used under BSD 2-clause
+ 
+ import ctypes
+-import ctypes.util
++from ctypes import util as ctypes_util
+ from threading import Event
+ 
+-objc = ctypes.cdll.LoadLibrary(ctypes.util.find_library("objc"))  # type:ignore[arg-type]
++objc = ctypes.cdll.LoadLibrary(ctypes_util.find_library("objc"))  # type:ignore[arg-type]
+ 
+ void_p = ctypes.c_void_p
+ 
+@@ -43,7 +43,7 @@ def C(classname):
+ 
+ # CoreFoundation C-API calls we will use:
+ CoreFoundation = ctypes.cdll.LoadLibrary(
+-    ctypes.util.find_library("CoreFoundation")  # type:ignore[arg-type]
++    ctypes_util.find_library("CoreFoundation")  # type:ignore[arg-type]
+ )
+ 
+ CFAbsoluteTimeGetCurrent = CoreFoundation.CFAbsoluteTimeGetCurrent
+diff --git a/extensions/positron-python/python_files/posit/positron/_vendor/ipykernel/comm/comm.py b/extensions/positron-python/python_files/posit/positron/_vendor/ipykernel/comm/comm.py
+index 1747d4ce7..60dd9e2e3 100644
+--- a/extensions/positron-python/python_files/posit/positron/_vendor/ipykernel/comm/comm.py
++++ b/extensions/positron-python/python_files/posit/positron/_vendor/ipykernel/comm/comm.py
+@@ -7,8 +7,8 @@ import uuid
+ from typing import Optional
+ from warnings import warn
+ 
+-import comm.base_comm
+-import traitlets.config
++from comm import base_comm as comm_base_comm
++from traitlets import config as traitlets_config
+ from traitlets import Bool, Bytes, Instance, Unicode, default
+ 
+ from ipykernel.jsonutil import json_clean
+@@ -16,7 +16,7 @@ from ipykernel.kernelbase import Kernel
+ 
+ 
+ # this is the class that will be created if we do comm.create_comm
+-class BaseComm(comm.base_comm.BaseComm):  # type:ignore[misc]
++class BaseComm(comm_base_comm.BaseComm):  # type:ignore[misc]
+     """The base class for comms."""
+ 
+     kernel: Optional["Kernel"] = None
+@@ -46,7 +46,7 @@ class BaseComm(comm.base_comm.BaseComm):  # type:ignore[misc]
+ 
+ 
+ # but for backwards compatibility, we need to inherit from LoggingConfigurable
+-class Comm(BaseComm, traitlets.config.LoggingConfigurable):
++class Comm(BaseComm, traitlets_config.LoggingConfigurable):
+     """Class for communicating between a Frontend and a Kernel"""
+ 
+     kernel = Instance("ipykernel.kernelbase.Kernel", allow_none=True)  # type:ignore[assignment]
+@@ -94,7 +94,7 @@ class Comm(BaseComm, traitlets.config.LoggingConfigurable):
+         # only re-add kernel if explicitly provided
+         if had_kernel:
+             kwargs["kernel"] = kernel
+-        traitlets.config.LoggingConfigurable.__init__(self, **kwargs)
++        traitlets_config.LoggingConfigurable.__init__(self, **kwargs)
+ 
+ 
+ __all__ = ["Comm"]
+diff --git a/extensions/positron-python/python_files/posit/positron/_vendor/ipykernel/comm/manager.py b/extensions/positron-python/python_files/posit/positron/_vendor/ipykernel/comm/manager.py
+index aaef027ce..d69826d13 100644
+--- a/extensions/positron-python/python_files/posit/positron/_vendor/ipykernel/comm/manager.py
++++ b/extensions/positron-python/python_files/posit/positron/_vendor/ipykernel/comm/manager.py
+@@ -5,16 +5,16 @@
+ 
+ import logging
+ 
+-import comm.base_comm
++from comm import base_comm as comm_base_comm
+ import traitlets
+-import traitlets.config
++from traitlets import config as traitlets_config
+ 
+ from .comm import Comm
+ 
+ logger = logging.getLogger("ipykernel.comm")
+ 
+ 
+-class CommManager(comm.base_comm.CommManager, traitlets.config.LoggingConfigurable):  # type:ignore[misc]
++class CommManager(comm_base_comm.CommManager, traitlets_config.LoggingConfigurable):  # type:ignore[misc]
+     """A comm manager."""
+ 
+     kernel = traitlets.Instance("ipykernel.kernelbase.Kernel")
+@@ -24,8 +24,8 @@ class CommManager(comm.base_comm.CommManager, traitlets.config.LoggingConfigurab
+     def __init__(self, **kwargs):
+         """Initialize the manager."""
+         # CommManager doesn't take arguments, so we explicitly forward arguments
+-        comm.base_comm.CommManager.__init__(self)
+-        traitlets.config.LoggingConfigurable.__init__(self, **kwargs)
++        comm_base_comm.CommManager.__init__(self)
++        traitlets_config.LoggingConfigurable.__init__(self, **kwargs)
+ 
+     def comm_open(self, stream, ident, msg):
+         """Handler for comm_open messages"""
+diff --git a/extensions/positron-python/python_files/posit/positron/_vendor/ipykernel/kernelbase.py b/extensions/positron-python/python_files/posit/positron/_vendor/ipykernel/kernelbase.py
+index f9eb2b942..d6d4d5dd0 100644
+--- a/extensions/positron-python/python_files/posit/positron/_vendor/ipykernel/kernelbase.py
++++ b/extensions/positron-python/python_files/posit/positron/_vendor/ipykernel/kernelbase.py
+@@ -5,7 +5,7 @@
+ from __future__ import annotations
+ 
+ import asyncio
+-import concurrent.futures
++from concurrent import futures as concurrent_futures
+ import inspect
+ import itertools
+ import logging
+@@ -295,19 +295,19 @@ class Kernel(SingletonConfigurable):
+         while True:
+             msg = await self.control_queue.get()
+             # handle tracers from _flush_control_queue
+-            if isinstance(msg, (concurrent.futures.Future, asyncio.Future)):
++            if isinstance(msg, (concurrent_futures.Future, asyncio.Future)):
+                 msg.set_result(None)
+                 continue
+             await self.process_control(msg)
+ 
+     async def _flush_control_queue(self):
+         """Flush the control queue, wait for processing of any pending messages"""
+-        tracer_future: concurrent.futures.Future[object] | asyncio.Future[object]
++        tracer_future: concurrent_futures.Future[object] | asyncio.Future[object]
+         if self.control_thread:
+             control_loop = self.control_thread.io_loop
+-            # concurrent.futures.Futures are threadsafe
++            # concurrent_futures.Futures are threadsafe
+             # and can be used to await across threads
+-            tracer_future = concurrent.futures.Future()
++            tracer_future = concurrent_futures.Future()
+             awaitable_future = asyncio.wrap_future(tracer_future)
+         else:
+             control_loop = self.io_loop

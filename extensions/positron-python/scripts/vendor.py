@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import json
 import re
 import shlex
 import shutil
@@ -12,6 +11,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Dict, List, Optional
 
 # This file adapts code extracted from the MIT-licensed `vendoring` Python package:
@@ -27,16 +27,29 @@ def main() -> None:
         base_directory=project_path,
         destination=Path("python_files/posit/positron/_vendor/"),
         namespace="positron._vendor",
-        requirements=Path(
-            "python_files/jedilsp_requirements/requirements.txt"
-        ),
+        requirements=Path("python_files/jedilsp_requirements/requirements.txt"),
+        exclude_dirs=[
+            # No need to vendor tests.
+            "IPython/core/tests",
+            "IPython/lib/tests",
+        ],
+        # Exclude compiled dependencies; they fail to install with our pip flags.
+        exclude_packages=["psutil", "pyzmq", "tornado"],
         patches_dir=Path("scripts/patches"),
         substitutions=[
-            # Fix pygments.lexers._mapping strings, via: https://github.com/pypa/pip/blob/main/pyproject.toml
+            # Rewrite pygments module strings used in dynamic imports.
+            {
+                "match": r"\('pygments\.formatters\.",
+                "replace": r"('positron._vendor.pygments.lexers.",
+            },
             {
                 "match": r"\('pygments\.lexers\.",
                 "replace": r"('positron._vendor.pygments.lexers.",
-            }
+            },
+            {
+                "match": r"\('pygments\.styles\.",
+                "replace": r"('positron._vendor.pygments.styles.",
+            },
         ],
     )
 
@@ -53,26 +66,41 @@ def main() -> None:
                 item.unlink()
 
     print("Download vendored libraries")
-    # Note that we use flags for secure and reproducible installs, via: https://github.com/brettcannon/pip-secure-install.
-    run(
-        [
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            "-t",
-            str(cfg.destination),
-            "--no-cache-dir",
-            "--implementation",
-            "py",
-            "--no-deps",
-            "--require-hashes",
-            "--only-binary",
-            ":all:",
-            "-r",
-            str(cfg.requirements),
-        ],
+
+    # Create a temporary requirements file without excluded dependencies.
+    requirements_text = cfg.requirements.read_text()
+    # Dependency specifiers are at the beginning of non-whitespace lines.
+    # Lookahead (?=...) is to avoid consuming the first character.
+    specifiers = re.split(r"\n(?=[^\s])", requirements_text)
+    vendored_requirements = "\n".join(
+        r
+        for r in specifiers
+        if not any(r.startswith(excluded) for excluded in cfg.exclude_packages)
     )
+    with NamedTemporaryFile("w") as f:
+        # Write the vendored requirements to a temporary file.
+        f.write(vendored_requirements)
+
+        # Download the vendored libraries.
+        # Note that we use flags for secure and reproducible installs, via: https://github.com/brettcannon/pip-secure-install.
+        run(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "-t",
+                str(cfg.destination),
+                "--implementation",
+                "py",
+                "--no-deps",
+                "--require-hashes",
+                "--only-binary",
+                ":all:",
+                "-r",
+                f.name,
+            ],
+        )
 
     # Detect what got downloaded.
     vendored_libs = detect_vendored_libs(cfg.destination)
@@ -95,6 +123,12 @@ def main() -> None:
                 ],
                 cwd=cfg.base_directory,
             )
+
+    # Delete excluded directories.
+    for d in cfg.exclude_dirs:
+        p = cfg.destination / d
+        if p.exists():
+            shutil.rmtree(p)
 
     # Rewrite the imports to reference the parent namespace.
     print("Rewrite imports")
@@ -124,6 +158,12 @@ class Configuration:
     # Path to a pip-style requirement files
     requirements: Path
 
+    # Directories to exclude, relative to `destination`
+    exclude_dirs: List[str]
+
+    # Packages to exclude from the `requirements` file
+    exclude_packages: List[str]
+
     # Location to ``.patch` files to apply after vendoring
     patches_dir: Optional[Path]
 
@@ -131,7 +171,7 @@ class Configuration:
     substitutions: List[Dict[str, str]]
 
 
-def run(args: List[str], cwd: Optional[str] = None) -> None:
+def run(args: List[str], cwd: Optional[Path] = None) -> None:
     # This function is mainly to stream stdout/stderr to the terminal.
     cmd = " ".join(map(shlex.quote, args))
     print(f"Running {cmd}")
@@ -153,9 +193,7 @@ def run(args: List[str], cwd: Optional[str] = None) -> None:
         if retcode is not None:
             break
     if retcode:
-        raise VendoringError(
-            f"Command exited with non-zero exit code: {retcode}"
-        )
+        raise VendoringError(f"Command exited with non-zero exit code: {retcode}")
 
 
 def detect_vendored_libs(destination: Path) -> List[str]:

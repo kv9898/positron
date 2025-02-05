@@ -54,3 +54,16 @@ index f935688f1..4c293489f 100644
              extensions = lexer_cls.filenames + lexer_cls.alias_filenames
  
              table.append({
+diff --git a/extensions/positron-python/python_files/posit/positron/_vendor/pygments/styles/__init__.py b/extensions/positron-python/python_files/posit/positron/_vendor/pygments/styles/__init__.py
+index 1401f51756b..568d725162f 100644
+--- a/extensions/positron-python/python_files/posit/positron/_vendor/pygments/styles/__init__.py
++++ b/extensions/positron-python/python_files/posit/positron/_vendor/pygments/styles/__init__.py
+@@ -38,7 +38,7 @@ def get_style_by_name(name):
+                 return style
+         # perhaps it got dropped into our styles package
+         builtin = ""
+-        mod = 'pygments.styles.' + name
++        mod = 'positron._vendor.pygments.styles.' + name
+         cls = name.title() + "Style"
+ 
+     try:

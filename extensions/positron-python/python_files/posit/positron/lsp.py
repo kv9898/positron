@@ -8,8 +8,7 @@ import logging
 import urllib.parse
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
-from comm.base_comm import BaseComm
-
+from ._vendor.comm.base_comm import BaseComm
 from .positron_jedilsp import POSITRON
 
 if TYPE_CHECKING:

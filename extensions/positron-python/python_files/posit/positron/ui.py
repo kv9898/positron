@@ -13,8 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Union
 from urllib.parse import urlparse
 
-from comm.base_comm import BaseComm
-
+from ._vendor.comm.base_comm import BaseComm
 from ._vendor.pydantic import BaseModel
 from .positron_comm import CommMessage, PositronComm
 from .ui_comm import (

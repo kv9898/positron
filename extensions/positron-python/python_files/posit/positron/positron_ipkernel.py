@@ -16,17 +16,17 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Container, cast
 
 import psutil
-import traitlets
-from ipykernel.compiler import get_tmp_directory
-from ipykernel.ipkernel import IPythonKernel
-from ipykernel.kernelapp import IPKernelApp
-from ipykernel.zmqshell import ZMQDisplayPublisher, ZMQInteractiveShell
-from IPython.core import magic_arguments, oinspect, page
-from IPython.core.error import UsageError
-from IPython.core.interactiveshell import ExecutionInfo, InteractiveShell
-from IPython.core.magic import Magics, MagicsManager, line_magic, magics_class
-from IPython.utils import PyColorize
 
+from ._vendor import traitlets
+from ._vendor.ipykernel.compiler import get_tmp_directory
+from ._vendor.ipykernel.ipkernel import IPythonKernel
+from ._vendor.ipykernel.kernelapp import IPKernelApp
+from ._vendor.ipykernel.zmqshell import ZMQDisplayPublisher, ZMQInteractiveShell
+from ._vendor.IPython.core import magic_arguments, oinspect, page
+from ._vendor.IPython.core.error import UsageError
+from ._vendor.IPython.core.interactiveshell import ExecutionInfo, InteractiveShell
+from ._vendor.IPython.core.magic import Magics, MagicsManager, line_magic, magics_class
+from ._vendor.IPython.utils import PyColorize
 from .access_keys import encode_access_key
 from .connections import ConnectionsService
 from .data_explorer import DataExplorerService
@@ -41,7 +41,7 @@ from .utils import BackgroundJobQueue, JsonRecord, get_qualname
 from .variables import VariablesService
 
 if TYPE_CHECKING:
-    from ipykernel.comm.manager import CommManager
+    from ._vendor.ipykernel.comm.manager import CommManager
 
 
 class _CommTarget(str, enum.Enum):
@@ -543,8 +543,12 @@ class PositronIPKernelApp(IPKernelApp):
         # If we're in a notebook, use IPython's default backend via the super() call below.
         # Matplotlib uses the MPLBACKEND environment variable to determine the backend to use.
         # It imports the backend module when it's first needed.
-        if self.session_mode != SessionMode.NOTEBOOK and not os.environ.get("MPLBACKEND"):
-            os.environ["MPLBACKEND"] = "module://positron.matplotlib_backend"
+        if not os.environ.get("MPLBACKEND"):
+            os.environ["MPLBACKEND"] = (
+                "module://positron._vendor.matplotlib_inline.backend_inline"
+                if self.session_mode == SessionMode.NOTEBOOK
+                else "module://positron.matplotlib_backend"
+            )
 
         return super().init_gui_pylab()
 

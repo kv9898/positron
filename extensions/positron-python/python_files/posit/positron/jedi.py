@@ -10,8 +10,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import Any, Callable, Iterable, List, Optional, Tuple, Union
 
-from IPython.core import oinspect
-
+from ._vendor.IPython.core import oinspect
 from ._vendor.jedi import settings
 from ._vendor.jedi.api import Completion as CompletionAPI
 from ._vendor.jedi.api import Interpreter, strings

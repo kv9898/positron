@@ -23,7 +23,7 @@ from .pydoc import start_server
 from .utils import JsonRecord, get_qualname
 
 if TYPE_CHECKING:
-    from comm.base_comm import BaseComm
+    from ._vendor.comm.base_comm import BaseComm
 
 logger = logging.getLogger(__name__)
 
