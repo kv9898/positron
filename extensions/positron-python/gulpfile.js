@@ -284,6 +284,9 @@ async function vendorPythonKernelRequirements() {
 }
 
 async function bundleIPykernel() {
+    const pythonPlatform = await spawnAsync(pythonCommand, ['-c', 'import sysconfig; print(sysconfig.get_platform())']);
+    fancyLog.info(`Bundling IPyKernel for platform: ${pythonPlatform.trim()}`);
+
     const pythonVersions = ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13'];
     const minimumPythonVersion = '3.8';
 
