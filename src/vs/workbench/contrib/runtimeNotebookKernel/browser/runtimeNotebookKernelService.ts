@@ -23,6 +23,7 @@ import { isRuntimeNotebookKernelEnabled } from '../common/runtimeNotebookKernelC
 import { IRuntimeNotebookKernelService } from './interfaces/runtimeNotebookKernelService.js';
 import { NotebookExecutionStatus } from './notebookExecutionStatus.js';
 import { RuntimeNotebookKernel } from './runtimeNotebookKernel.js';
+import { IDebugService } from '../../debug/common/debug.js';
 
 /**
  * The affinity of a kernel for a notebook.
@@ -56,6 +57,7 @@ export class RuntimeNotebookKernelService extends Disposable implements IRuntime
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IRuntimeSessionService private readonly _runtimeSessionService: IRuntimeSessionService,
 		@IRuntimeStartupService private readonly _runtimeStartupService: IRuntimeStartupService,
+		@IDebugService private readonly _debugService: IDebugService,
 	) {
 		super();
 
@@ -64,6 +66,13 @@ export class RuntimeNotebookKernelService extends Disposable implements IRuntime
 
 		// Create the active notebook has running runtime context manager.
 		this._register(this._instantiationService.createInstance(ActiveNotebookHasRunningRuntimeManager));
+
+		this._register(this._debugService.getAdapterManager().registerDebugAdapterDescriptorFactory({
+			type: 'notebookKernel', async createDebugAdapterDescriptor(session) {
+				console.log('createDebugAdapterDescriptor', session);
+				return { type: 'implementation' };
+			},
+		}));
 
 		// If runtime notebook kernels are disabled, do not proceed.
 		// In that case, the positron-notebook-controllers extension will register its own kernels.

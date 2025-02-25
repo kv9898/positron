@@ -16,6 +16,7 @@ import { JupyterClearOutput } from './jupyter/JupyterClearOutput';
 import { JupyterErrorReply } from './jupyter/JupyterErrorReply';
 import { JupyterStreamOutput } from './jupyter/JupyterStreamOutput';
 import { JupyterInputRequest } from './jupyter/JupyterInputRequest';
+import { DebugProtocol } from 'vscode-debugprotocol';
 
 /**
  * An emitter for runtime messages; translates Jupyter messages into language
@@ -49,6 +50,12 @@ export class RuntimeMessageEmitter {
 				break;
 			case 'comm_open':
 				this.onCommOpen(msg, msg.content as JupyterCommOpen);
+				break;
+			case 'debug_event':
+				this.onDebugEvent(msg, msg.content as DebugProtocol.Event);
+				break;
+			case 'debug_reply':
+				this.onDebugReply(msg, msg.content as DebugProtocol.Response);
 				break;
 			case 'display_data':
 				this.onDisplayData(msg, msg.content as JupyterDisplayData);
@@ -185,6 +192,28 @@ export class RuntimeMessageEmitter {
 			data: data.data,
 			metadata: message.metadata,
 		} as positron.LanguageRuntimeCommOpen);
+	}
+
+	private onDebugEvent(message: JupyterMessage, data: DebugProtocol.Event): void {
+		this._emitter.fire({
+			id: message.header.msg_id,
+			parent_id: message.parent_header?.msg_id,
+			when: message.header.date,
+			type: positron.LanguageRuntimeMessageType.DebugEvent,
+			content: data,
+			metadata: message.metadata,
+		} as positron.LanguageRuntimeDebugEvent);
+	}
+
+	private onDebugReply(message: JupyterMessage, data: DebugProtocol.Response): void {
+		this._emitter.fire({
+			id: message.header.msg_id,
+			parent_id: message.parent_header?.msg_id,
+			when: message.header.date,
+			type: positron.LanguageRuntimeMessageType.DebugReply,
+			content: data,
+			metadata: message.metadata,
+		} as positron.LanguageRuntimeDebugReply);
 	}
 
 	/**
