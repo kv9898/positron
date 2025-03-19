@@ -609,9 +609,10 @@ export class RuntimeSessionService extends Disposable implements IRuntimeSession
 		// session to be coalesced.
 		const multiSessionsEnabled = multipleConsoleSessionsFeatureEnabled(this._configurationService);
 
+		const sessionMapKey = this.getSessionMapKey(
+			sessionMetadata.sessionMode, runtimeMetadata.runtimeId, sessionMetadata.notebookUri);
+
 		if (!multiSessionsEnabled) {
-			const sessionMapKey = this.getSessionMapKey(
-				sessionMetadata.sessionMode, runtimeMetadata.runtimeId, sessionMetadata.notebookUri, sessionMetadata.sessionId);
 			const startingRuntimePromise = this._startingSessionsBySessionMapKey.get(sessionMapKey);
 			if (startingRuntimePromise && !startingRuntimePromise.isSettled) {
 				return startingRuntimePromise.p.then(() => { });
@@ -635,6 +636,10 @@ export class RuntimeSessionService extends Disposable implements IRuntimeSession
 
 		// Create a promise that resolves when the runtime is ready to use.
 		const restorePromise = new DeferredPromise<string>();
+
+		if (!multiSessionsEnabled) {
+			this._startingSessionsBySessionMapKey.set(sessionMapKey, restorePromise);
+		}
 
 		// It's possible that startPromise is never awaited, so we log any errors here
 		// at the debug level since we still expect the error to be handled/logged elsewhere.
