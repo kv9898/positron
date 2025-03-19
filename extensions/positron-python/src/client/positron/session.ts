@@ -114,18 +114,6 @@ export class PythonRuntimeSession implements positron.LanguageRuntimeSession, vs
         this.onDidChangeRuntimeState = this._stateEmitter.event;
         this.onDidEndSession = this._exitEmitter.event;
 
-        positron.runtime.onDidChangeForegroundSession((sessionId) => {
-            if (sessionId) {
-                if (sessionId === metadata.sessionId) {
-                    // Start LSP for the foreground session only if its been previously stopped
-                    this.activateLsp();
-                } else if (metadata.sessionMode === positron.LanguageRuntimeSessionMode.Console) {
-                    // Stop LSP for other console sessions if they are running
-                    this.deactivateLsp();
-                }
-            }
-        });
-
         // Extract the extra data from the runtime metadata; it contains the
         // Python path that was saved when the metadata was created.
         const extraData: PythonRuntimeExtraData = runtimeMetadata.extraRuntimeData as PythonRuntimeExtraData;
@@ -539,11 +527,11 @@ export class PythonRuntimeSession implements positron.LanguageRuntimeSession, vs
         );
     }
 
-    async activateLsp() {
+    public async activateLsp() {
         // Start LSP for the foreground session only if its been previously stopped
         if (this._lsp?.state === LspState.stopped) {
-            this._queue.add(async () => {
-                this.startLsp();
+            await this._queue.add(async () => {
+                await this.startLsp();
             });
         }
     }
@@ -566,9 +554,9 @@ export class PythonRuntimeSession implements positron.LanguageRuntimeSession, vs
         }
     }
 
-    async deactivateLsp() {
+    public async deactivateLsp() {
         if (this._lsp?.state === LspState.running) {
-            this._queue.add(async () => {
+            await this._queue.add(async () => {
                 if (this._kernel) {
                     this._kernel.emitJupyterLog(`Stopping Positron LSP server`);
                 }
