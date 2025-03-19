@@ -628,7 +628,7 @@ export class RuntimeSessionService extends Disposable implements IRuntimeSession
 		}
 
 		const runningSessionId = this.validateRuntimeSessionStart(
-			sessionMetadata.sessionMode, runtimeMetadata, sessionMetadata.notebookUri, sessionMetadata.sessionId);
+			sessionMetadata.sessionMode, runtimeMetadata, sessionMetadata.notebookUri, undefined, sessionMetadata.sessionId);
 		if (runningSessionId) {
 			return;
 		}
