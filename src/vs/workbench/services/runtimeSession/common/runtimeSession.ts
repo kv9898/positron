@@ -39,19 +39,6 @@ import { localize } from '../../../../nls.js';
 const MAX_CONCURRENT_SESSIONS = 15;
 
 /**
- * Get a map key corresponding to a session.
- *
- * @returns A composite of the session mode, runtime ID, and notebook URI - assuming that there
- *  is at most one session for this combination at any given time.
- */
-function getSessionMapKey(sessionMode: LanguageRuntimeSessionMode,
-	runtimeId: string,
-	notebookUri: URI | undefined,
-	sessionId?: string): string {
-	return JSON.stringify([sessionMode, runtimeId, notebookUri?.toString(), sessionId]);
-}
-
-/**
  * The implementation of IRuntimeSessionService.
  */
 export class RuntimeSessionService extends Disposable implements IRuntimeSessionService, IOpener {
@@ -88,6 +75,7 @@ export class RuntimeSessionService extends Disposable implements IRuntimeSession
 	// owning the session.
 	private readonly _startingNotebooksByNotebookUri = new ResourceMap<ILanguageRuntimeMetadata>();
 
+	// A map of the consoles being restored. This is keyed by the session ID.
 	private readonly _restoringConsolesBySessionId = new Map<string, ILanguageRuntimeMetadata>();
 
 
@@ -394,7 +382,7 @@ export class RuntimeSessionService extends Disposable implements IRuntimeSession
 
 		// If a start request is already in progress, wait for it to complete.
 		const startingPromise = this._startingSessionsBySessionMapKey.get(
-			getSessionMapKey(sessionMode, runtimeId, notebookUri));
+			this.getSessionMapKey(sessionMode, runtimeId, notebookUri));
 		if (startingPromise && !startingPromise.isSettled) {
 			await startingPromise.p;
 		}
@@ -542,7 +530,7 @@ export class RuntimeSessionService extends Disposable implements IRuntimeSession
 		// are, return the promise that resolves when the session is ready to
 		// use. This makes it possible for multiple requests to start the same
 		// session to be coalesced.
-		const sessionMapKey = getSessionMapKey(sessionMode, runtimeId, notebookUri);
+		const sessionMapKey = this.getSessionMapKey(sessionMode, runtimeId, notebookUri);
 		const startingRuntimePromise = this._startingSessionsBySessionMapKey.get(sessionMapKey);
 		if (startingRuntimePromise && !startingRuntimePromise.isSettled) {
 			return startingRuntimePromise.p;
@@ -619,11 +607,15 @@ export class RuntimeSessionService extends Disposable implements IRuntimeSession
 		// are, return the promise that resolves when the session is ready to
 		// use. This makes it possible for multiple requests to start the same
 		// session to be coalesced.
-		const sessionMapKey = getSessionMapKey(
-			sessionMetadata.sessionMode, runtimeMetadata.runtimeId, sessionMetadata.notebookUri, sessionMetadata.sessionId);
-		const startingRuntimePromise = this._startingSessionsBySessionMapKey.get(sessionMapKey);
-		if (startingRuntimePromise && !startingRuntimePromise.isSettled) {
-			return startingRuntimePromise.p.then(() => { });
+		const multiSessionsEnabled = multipleConsoleSessionsFeatureEnabled(this._configurationService);
+
+		if (!multiSessionsEnabled) {
+			const sessionMapKey = this.getSessionMapKey(
+				sessionMetadata.sessionMode, runtimeMetadata.runtimeId, sessionMetadata.notebookUri, sessionMetadata.sessionId);
+			const startingRuntimePromise = this._startingSessionsBySessionMapKey.get(sessionMapKey);
+			if (startingRuntimePromise && !startingRuntimePromise.isSettled) {
+				return startingRuntimePromise.p.then(() => { });
+			}
 		}
 
 		// Ensure that the runtime is registered.
@@ -805,7 +797,7 @@ export class RuntimeSessionService extends Disposable implements IRuntimeSession
 	 */
 	private async doRestartRuntime(session: ILanguageRuntimeSession): Promise<void> {
 		// If there is already a runtime starting for the session, return its promise.
-		const sessionMapKey = getSessionMapKey(
+		const sessionMapKey = this.getSessionMapKey(
 			session.metadata.sessionMode, session.runtimeMetadata.runtimeId, session.metadata.notebookUri, session.metadata.sessionId);
 		const startingRuntimePromise = this._startingSessionsBySessionMapKey.get(sessionMapKey);
 		if (startingRuntimePromise && !startingRuntimePromise.isSettled) {
@@ -963,7 +955,7 @@ export class RuntimeSessionService extends Disposable implements IRuntimeSession
 		}
 
 		// Get the starting promise.
-		const sessionMapKey = getSessionMapKey(
+		const sessionMapKey = this.getSessionMapKey(
 			LanguageRuntimeSessionMode.Notebook, startingRuntime.runtimeId, notebookUri);
 		const startingPromise = this._startingSessionsBySessionMapKey.get(sessionMapKey);
 		if (!startingPromise) {
@@ -1034,8 +1026,11 @@ export class RuntimeSessionService extends Disposable implements IRuntimeSession
 				.some(
 					runtime => runtime.languageId === languageId);
 
+			const hasRestoringConsoleForLanguageId = Array.from(this._restoringConsolesBySessionId.values())
+				.some(session => session.languageId === languageId);
+
 			if (languageId) {
-				return hasStartingConsoleForLanguageId || hasRunningConsoleForLanguageId;
+				return hasStartingConsoleForLanguageId || hasRestoringConsoleForLanguageId || hasRunningConsoleForLanguageId;
 			} else {
 				return this._startingConsolesByRuntimeId.size > 0 || hasRunningConsole;
 			}
@@ -1187,7 +1182,7 @@ export class RuntimeSessionService extends Disposable implements IRuntimeSession
 		// use. This makes it possible for multiple requests to start the same
 		// session to be coalesced.
 		const startingRuntimePromise = this._startingSessionsBySessionMapKey.get(
-			getSessionMapKey(sessionMode, metadata.runtimeId, notebookUri));
+			this.getSessionMapKey(sessionMode, metadata.runtimeId, notebookUri));
 		if (startingRuntimePromise && !startingRuntimePromise.isSettled) {
 			return startingRuntimePromise.p;
 		}
@@ -1207,7 +1202,7 @@ export class RuntimeSessionService extends Disposable implements IRuntimeSession
 
 		// Create a promise that resolves when the runtime is ready to use.
 		const startPromise = new DeferredPromise<string>();
-		const sessionMapKey = getSessionMapKey(sessionMode, metadata.runtimeId, notebookUri);
+		const sessionMapKey = this.getSessionMapKey(sessionMode, metadata.runtimeId, notebookUri);
 		this._startingSessionsBySessionMapKey.set(sessionMapKey, startPromise);
 
 		// It's possible that startPromise is never awaited, so we log any errors here
@@ -1320,7 +1315,7 @@ export class RuntimeSessionService extends Disposable implements IRuntimeSession
 		this.setStartingSessionMaps(sessionMode, runtimeMetadata, notebookUri);
 
 		// Create a promise that resolves when the runtime is ready to use, if there isn't already one.
-		const sessionMapKey = getSessionMapKey(sessionMode, runtimeMetadata.runtimeId, notebookUri);
+		const sessionMapKey = this.getSessionMapKey(sessionMode, runtimeMetadata.runtimeId, notebookUri);
 		let startPromise = this._startingSessionsBySessionMapKey.get(sessionMapKey);
 		if (!startPromise || startPromise.isSettled) {
 			startPromise = new DeferredPromise<string>();
@@ -1784,7 +1779,7 @@ export class RuntimeSessionService extends Disposable implements IRuntimeSession
 		sessionId?: string) {
 		const multiSessionsEnabled = multipleConsoleSessionsFeatureEnabled(this._configurationService);
 
-		if (sessionId !== undefined) {
+		if (sessionId !== undefined && multiSessionsEnabled) {
 			this._restoringConsolesBySessionId.set(sessionId, runtimeMetadata);
 		} else if (sessionMode === LanguageRuntimeSessionMode.Console) {
 			if (multiSessionsEnabled) {
@@ -1810,7 +1805,7 @@ export class RuntimeSessionService extends Disposable implements IRuntimeSession
 		notebookUri?: URI,
 		sessionId?: string) {
 		const multiSessionsEnabled = multipleConsoleSessionsFeatureEnabled(this._configurationService);
-		const sessionMapKey = getSessionMapKey(sessionMode, runtimeMetadata.runtimeId, notebookUri);
+		const sessionMapKey = this.getSessionMapKey(sessionMode, runtimeMetadata.runtimeId, notebookUri);
 
 		this._startingSessionsBySessionMapKey.delete(sessionMapKey);
 		if (sessionMode === LanguageRuntimeSessionMode.Console) {
@@ -2030,6 +2025,25 @@ export class RuntimeSessionService extends Disposable implements IRuntimeSession
 
 		this._register(updateLanguagesDisposable);
 		return updateLanguagesDisposable;
+	}
+
+	/**
+	 * Get a map key corresponding to a session.
+	 *
+	 * @returns A composite of the session mode, runtime ID, and notebook URI - assuming that there
+	 *  is at most one session for this combination at any given time.
+	 */
+	private getSessionMapKey(sessionMode: LanguageRuntimeSessionMode,
+		runtimeId: string,
+		notebookUri: URI | undefined,
+		sessionId?: string): string {
+		const multiSessionsEnabled = multipleConsoleSessionsFeatureEnabled(this._configurationService);
+
+		if (multiSessionsEnabled) {
+			return JSON.stringify([sessionMode, runtimeId, notebookUri?.toString(), sessionId]);
+		} else {
+			return JSON.stringify([sessionMode, runtimeId, notebookUri?.toString()]);
+		}
 	}
 
 	public updateActiveLanguages(): void {
