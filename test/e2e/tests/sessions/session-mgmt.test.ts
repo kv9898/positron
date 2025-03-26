@@ -3,7 +3,7 @@
  *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { test, tags } from '../_test.setup';
+import { test, tags, expect } from '../_test.setup';
 import { Application, SessionInfo } from '../../infra';
 
 test.use({
@@ -193,6 +193,29 @@ test.describe('Sessions: Management', {
 			// await sessions.select(pySession2.id);
 			// await variables.expectVariableToBe('test', '3');
 			// await console.waitForConsoleContents('this is console 3', { exact: true });
+		});
+
+	test('Validate session creation dropdown menu',
+		{
+			tag: [tags.VARIABLES, tags.PLOTS],
+		}, async function ({ app, page, sessions }) {
+			await sessions.start(['python', 'r']);
+
+			const menuData = await app.nativeMenu?.showContextMenu(async () => await page.getByRole('toolbar', { name: 'Console actions' }).getByLabel('Quick Launch Session...').click());
+			if (menuData) {
+				const { menuId, items } = menuData;
+				const menuItem = items[0];
+				if (menuItem) {
+					await app.nativeMenu?.selectContextMenuItem(menuId, menuItem.label);
+					await sessions.expectSessionCountToBe(3);
+					const sessionInfo = await sessions.getSelectedSessionInfo();
+					expect(sessionInfo.name).toBe(menuItem.label);
+				} else {
+					throw new Error(`Context menu 'Start Session' did not appear or no menu items found.`);
+				}
+			} else {
+				throw new Error(`Context menu 'Start Session' did not appear.`);
+			}
 		});
 });
 
