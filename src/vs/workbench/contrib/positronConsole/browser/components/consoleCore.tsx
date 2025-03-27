@@ -147,12 +147,16 @@ export const ConsoleCore = (props: ConsoleCoreProps) => {
 							</div>
 						}
 					</div>
-					<VerticalSplitter
-						configurationService={positronConsoleContext.configurationService}
-						onBeginResize={handleBeginResize}
-						onResize={handleResize}
-					/>
-					{!positronConsoleContext.consoleSessionListCollapsed && <ConsoleTabList height={props.height} width={consoleTabListWidth} />}
+					{consoleTabListWidth > 0 &&
+						<VerticalSplitter
+							configurationService={positronConsoleContext.configurationService}
+							onBeginResize={handleBeginResize}
+							onResize={handleResize}
+						/>
+					}
+					{!positronConsoleContext.consoleSessionListCollapsed &&
+						<ConsoleTabList height={props.height} width={consoleTabListWidth} />
+					}
 				</>
 			}
 			{!multiSessionsEnabled &&

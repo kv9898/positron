@@ -374,7 +374,7 @@ export const ActionBar = (props: ActionBarProps) => {
 		<PositronActionBarContextProvider {...positronConsoleContext}>
 			<div className='action-bar'>
 				<PositronDynamicActionBar
-					borderBottom={true}
+					borderBottom={false}
 					borderTop={true}
 					leftActionsMenuID={MenuId.ConsoleActionsLeft}
 					paddingLeft={kPaddingLeft}

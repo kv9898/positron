@@ -3,6 +3,7 @@
  *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// React.
 import { localize } from '../../../../nls.js';
 import { isString } from '../../../../base/common/types.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -12,7 +13,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { ILocalizedString } from '../../../../platform/action/common/action.js';
+import { ICommandActionTitle, ILocalizedString } from '../../../../platform/action/common/action.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { PositronConsoleFocused } from '../../../common/contextkeys.js';
@@ -594,6 +595,7 @@ export function registerPositronConsoleActions() {
 	});
 
 
+
 	registerAction2(class extends Action2 {
 		/**
 		 * Constructor.
@@ -601,10 +603,17 @@ export function registerPositronConsoleActions() {
 		constructor() {
 			super({
 				id: PositronConsoleCommandId.Test,
-				title: {
-					value: localize('workbench.action.positronConsole.test', "Test"),
-					original: 'Test'
+				get title(): ICommandActionTitle {
+					return {
+						value: `YAYA ${new Date().toLocaleTimeString()}`,
+						original: `YAYA ${new Date().toLocaleTimeString()}`
+					}
 				},
+
+				// title: {
+				// 	value: localize('workbench.action.positronConsole.test', "Test"),
+				// 	original: 'Test'
+				// },
 				f1: true,
 				category,
 				// precondition: ContextKeyExpr.and(
@@ -622,7 +631,9 @@ export function registerPositronConsoleActions() {
 				icon: Codicon.positronClearSorting,
 				menu: [{
 					id: MenuId.ConsoleActionsLeft
-				}]
+				}],
+				displayTitleOnActionBar: true,
+				// foo: () => <div>Test</div>
 			});
 		}
 

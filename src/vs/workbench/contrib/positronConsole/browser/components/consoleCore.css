@@ -7,10 +7,6 @@
 	width: 100%;
 }
 
-.positron-console .console-core .yaya7:focus {
-	outline: none !important;
-}
-
 .positron-console .console-core .console-instances-container {
 	position: relative;
 }

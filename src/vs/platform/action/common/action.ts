@@ -103,6 +103,7 @@ export interface ICommandAction {
 	 * appears on an action bar.
 	 */
 	displayTitleOnActionBar?: boolean;
+	foo?: () => JSX.Element;
 	// --- End Positron
 }
 
