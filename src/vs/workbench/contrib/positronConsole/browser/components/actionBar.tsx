@@ -28,6 +28,8 @@ import { ConsoleInstanceMenuButton } from './consoleInstanceMenuButton.js';
 import { multipleConsoleSessionsFeatureEnabled } from '../../../../services/runtimeSession/common/positronMultipleConsoleSessionsFeatureFlag.js';
 import { ConsoleInstanceInfoButton } from './consoleInstanceInfoButton.js';
 import { CurrentWorkingDirectory } from './currentWorkingDirectory.js';
+import { PositronDynamicActionBar } from '../../../../../platform/positronActionBar/browser/positronDynamicActionBar.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 
 /**
  * Constants.
@@ -370,6 +372,17 @@ export const ActionBar = (props: ActionBarProps) => {
 	// Render.
 	return (
 		<PositronActionBarContextProvider {...positronConsoleContext}>
+			<div className='action-bar'>
+				<PositronDynamicActionBar
+					borderBottom={true}
+					borderTop={true}
+					leftActionsMenuID={MenuId.ConsoleActionsLeft}
+					paddingLeft={kPaddingLeft}
+					paddingRight={kPaddingRight}
+					rightActionsMenuID={MenuId.ConsoleActionsRight}
+					size='small'
+				/>
+			</div>
 			<div className='action-bar'>
 				<PositronActionBar
 					borderBottom={true}

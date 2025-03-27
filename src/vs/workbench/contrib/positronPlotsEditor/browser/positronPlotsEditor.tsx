@@ -32,6 +32,7 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { ILanguageRuntimeService } from '../../../services/languageRuntime/common/languageRuntimeService.js';
 import { IPositronPlotClient, IPositronPlotsService } from '../../../services/positronPlots/common/positronPlots.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { IMenuService } from '../../../../platform/actions/common/actions.js';
 
 export interface IPositronPlotsEditorOptions extends IEditorOptions {
 }
@@ -105,6 +106,7 @@ export class PositronPlotsEditor extends EditorPane implements IPositronPlotsEdi
 		@ICommandService private readonly _commandService: ICommandService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IMenuService private readonly _menuService: IMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -139,6 +141,7 @@ export class PositronPlotsEditor extends EditorPane implements IPositronPlotsEdi
 				hoverService={this._hoverService}
 				keybindingService={this._keybindingService}
 				languageRuntimeService={this._languageRuntimeService}
+				menuService={this._menuService}
 				notificationService={this._notificationService}
 				positronPlotsService={this._positronPlotsService}
 				preferencesService={this._preferencesService}

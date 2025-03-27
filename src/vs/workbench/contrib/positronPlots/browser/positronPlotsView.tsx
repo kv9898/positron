@@ -32,6 +32,7 @@ import { PositronViewPane } from '../../../browser/positronViewPane/positronView
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { IMenuService } from '../../../../platform/actions/common/actions.js';
 
 /**
  * PositronPlotsViewPane class.
@@ -152,6 +153,7 @@ export class PositronPlotsViewPane extends PositronViewPane implements IReactCom
 	 * @param instantiationService The instantiation service.
 	 * @param keybindingService The keybinding service.
 	 * @param languageRuntimeService The language runtime service.
+	 * @param menuService The menu service.
 	 * @param notificationService The notification service.
 	 * @param openerService The opener service.
 	 * @param positronPlotsService The oositron plots service.
@@ -173,6 +175,7 @@ export class PositronPlotsViewPane extends PositronViewPane implements IReactCom
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ILanguageRuntimeService private readonly languageRuntimeService: ILanguageRuntimeService,
+		@IMenuService private readonly menuService: IMenuService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService openerService: IOpenerService,
 		@IPositronPlotsService private readonly positronPlotsService: IPositronPlotsService,
@@ -253,6 +256,7 @@ export class PositronPlotsViewPane extends PositronViewPane implements IReactCom
 				keybindingService={this.keybindingService}
 				languageRuntimeService={this.languageRuntimeService}
 				layoutService={this.layoutService}
+				menuService={this.menuService}
 				notificationService={this.notificationService}
 				positronPlotsService={this.positronPlotsService}
 				preferencesService={this.preferencesService}

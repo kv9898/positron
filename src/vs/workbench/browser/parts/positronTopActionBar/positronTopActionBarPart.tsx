@@ -38,6 +38,7 @@ import { ILanguageRuntimeService } from '../../../services/languageRuntime/commo
 import { IPositronTopActionBarService } from '../../../services/positronTopActionBar/browser/positronTopActionBarService.js';
 import { IPositronTopActionBarContainer, PositronTopActionBar } from './positronTopActionBar.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IMenuService } from '../../../../platform/actions/common/actions.js';
 
 /**
  * PositronTopActionBarPart class.
@@ -114,6 +115,7 @@ export class PositronTopActionBarPart extends Part implements IPositronTopAction
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ILanguageRuntimeService private readonly languageRuntimeService: ILanguageRuntimeService,
+		@IMenuService private readonly menuService: IMenuService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IRuntimeStartupService private readonly runtimeStartupService: IRuntimeStartupService,
 		@IRuntimeSessionService private readonly runtimeSessionService: IRuntimeSessionService,
@@ -151,6 +153,7 @@ export class PositronTopActionBarPart extends Part implements IPositronTopAction
 				labelService={this.labelService}
 				languageRuntimeService={this.languageRuntimeService}
 				layoutService={this.layoutService}
+				menuService={this.menuService}
 				positronTopActionBarContainer={this}
 				positronTopActionBarService={this}
 				quickInputService={this.quickInputService}

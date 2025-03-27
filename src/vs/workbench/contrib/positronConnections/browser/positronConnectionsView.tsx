@@ -30,6 +30,7 @@ import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILanguageRuntimeService } from '../../../services/languageRuntime/common/languageRuntimeService.js';
 import { IRuntimeStartupService } from '../../../services/runtimeStartup/common/runtimeStartupService.js';
 import { IRuntimeSessionService } from '../../../services/runtimeSession/common/runtimeSessionService.js';
+import { IMenuService } from '../../../../platform/actions/common/actions.js';
 
 export class PositronConnectionsView
 	extends PositronViewPane
@@ -85,6 +86,7 @@ export class PositronConnectionsView
 		@ICommandService private readonly commandService: ICommandService,
 		@IPositronConnectionsService private readonly connectionsService: IPositronConnectionsService,
 		@ILayoutService private readonly layoutService: ILayoutService,
+		@IMenuService private readonly menuService: IMenuService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -149,6 +151,7 @@ export class PositronConnectionsView
 				keybindingService={this.keybindingService}
 				languageRuntimeService={this.languageRuntimeService}
 				layoutService={this.layoutService}
+				menuService={this.menuService}
 				modelService={this.modelService}
 				notificationService={this.notificationService}
 				reactComponentContainer={this}

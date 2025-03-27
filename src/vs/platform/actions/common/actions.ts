@@ -78,6 +78,8 @@ export class MenuId {
 	static readonly EditorActionsLeft = new MenuId('EditorActionsLeft');
 	static readonly EditorActionsCenter = new MenuId('EditorActionsCenter');
 	static readonly EditorActionsRight = new MenuId('EditorActionsRight');
+	static readonly ConsoleActionsLeft = new MenuId('ConsoleActionsLeft');
+	static readonly ConsoleActionsRight = new MenuId('ConsoleActionsRight');
 	// --- End Positron ---
 	static readonly EditorTitle = new MenuId('EditorTitle');
 	static readonly EditorTitleRun = new MenuId('EditorTitleRun');

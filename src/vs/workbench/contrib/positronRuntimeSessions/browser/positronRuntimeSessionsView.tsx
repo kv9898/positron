@@ -29,6 +29,7 @@ import { IWorkbenchLayoutService } from '../../../services/layout/browser/layout
 import { PositronViewPane } from '../../../browser/positronViewPane/positronViewPane.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IMenuService } from '../../../../platform/actions/common/actions.js';
 
 /**
  * PositronSessionsViewPane class.
@@ -185,6 +186,7 @@ export class PositronRuntimeSessionsViewPane extends PositronViewPane implements
 		@IHoverService hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IMenuService private readonly _menuService: IMenuService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IRuntimeSessionService private readonly _runtimeSessionService: IRuntimeSessionService,
 		@IOpenerService openerService: IOpenerService,
@@ -244,6 +246,7 @@ export class PositronRuntimeSessionsViewPane extends PositronViewPane implements
 				hoverService={this.hoverService}
 				keybindingService={this.keybindingService}
 				layoutService={this._layoutService}
+				menuService={this._menuService}
 				reactComponentContainer={this}
 				runtimeSessionService={this._runtimeSessionService}
 			/>

@@ -36,6 +36,7 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { OpenInEditorMenuButton } from './openInEditorMenuButton.js';
 import { DarkFilterMenuButton } from './darkFilterMenuButton.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
+import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 
 // Constants.
 const kPaddingLeft = 14;
@@ -63,6 +64,7 @@ export interface ActionBarsProps {
 	readonly hoverService: IHoverService;
 	readonly keybindingService: IKeybindingService;
 	readonly layoutService: IWorkbenchLayoutService;
+	readonly menuService: IMenuService;
 	readonly notificationService: INotificationService;
 	readonly preferencesService: IPreferencesService;
 	readonly zoomHandler: (zoomLevel: number) => void;

@@ -42,6 +42,7 @@ import { IPositronConsoleService } from '../../../services/positronConsole/brows
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IMenuService } from '../../../../platform/actions/common/actions.js';
 
 /**
  * PositronConsoleViewPane class.
@@ -188,6 +189,7 @@ export class PositronConsoleViewPane extends PositronViewPane implements IReactC
 	 * @param languageService The language service.
 	 * @param layoutService The layout service.
 	 * @param logService The log service.
+	 * @param menuService The menu service.
 	 * @param modelService The model service.
 	 * @param notificationService The notification service.
 	 * @param openerService The opener service.
@@ -217,6 +219,7 @@ export class PositronConsoleViewPane extends PositronViewPane implements IReactC
 		@ILanguageService private readonly languageService: ILanguageService,
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@ILogService private readonly logService: ILogService,
+		@IMenuService private readonly menuService: IMenuService,
 		@IModelService private readonly modelService: IModelService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService openerService: IOpenerService,
@@ -294,6 +297,7 @@ export class PositronConsoleViewPane extends PositronViewPane implements IReactC
 				languageService={this.languageService}
 				layoutService={this.layoutService}
 				logService={this.logService}
+				menuService={this.menuService}
 				modelService={this.modelService}
 				notificationService={this.notificationService}
 				openerService={this.openerService}

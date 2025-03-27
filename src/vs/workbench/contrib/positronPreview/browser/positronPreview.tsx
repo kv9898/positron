@@ -32,6 +32,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { PreviewHtml } from './previewHtml.js';
 import { HtmlActionBars } from './components/htmlActionBars.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IMenuService } from '../../../../platform/actions/common/actions.js';
 
 /**
  * PositronPreviewProps interface.
@@ -46,6 +47,7 @@ export interface PositronPreviewProps extends PositronPreviewServices {
 	readonly hoverService: IHoverService;
 	readonly keybindingService: IKeybindingService;
 	readonly layoutService: IWorkbenchLayoutService;
+	readonly menuService: IMenuService;
 	readonly openerService: IOpenerService;
 	readonly notificationService: INotificationService;
 	readonly positronPreviewService: IPositronPreviewService;

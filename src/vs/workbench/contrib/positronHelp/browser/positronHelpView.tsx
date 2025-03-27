@@ -29,6 +29,7 @@ import { ActionBars } from './components/actionBars.js';
 import { IPositronHelpService } from './positronHelpService.js';
 import { IReactComponentContainer, ISize, PositronReactRenderer } from '../../../../base/browser/positronReactRenderer.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IMenuService } from '../../../../platform/actions/common/actions.js';
 
 /**
  * PositronHelpView class.
@@ -175,6 +176,7 @@ export class PositronHelpView extends PositronViewPane implements IReactComponen
 		@IHoverService hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IMenuService private readonly menuService: IMenuService,
 		@IOpenerService openerService: IOpenerService,
 		@IPositronHelpService private readonly positronHelpService: IPositronHelpService,
 		@IThemeService themeService: IThemeService,
@@ -271,6 +273,7 @@ export class PositronHelpView extends PositronViewPane implements IReactComponen
 				contextMenuService={this.contextMenuService}
 				hoverService={this.hoverService}
 				keybindingService={this.keybindingService}
+				menuService={this.menuService}
 				positronHelpService={this.positronHelpService}
 				reactComponentContainer={this}
 				onHome={homeHandler}

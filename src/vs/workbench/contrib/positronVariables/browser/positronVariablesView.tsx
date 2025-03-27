@@ -35,6 +35,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IPositronDataExplorerService } from '../../../services/positronDataExplorer/browser/interfaces/positronDataExplorerService.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IMenuService } from '../../../../platform/actions/common/actions.js';
 
 /**
  * PositronVariablesViewPane class.
@@ -179,6 +180,7 @@ export class PositronVariablesViewPane extends PositronViewPane implements IReac
 	 * @param instantiationService The instantiation service.
 	 * @param keybindingService The keybinding service.
 	 * @param _languageRuntimeService The language runtime service.
+	 * @param _menuService The menu service.
 	 * @param _runtimeSessionService The runtime session service.
 	 * @param openerService The opener service.
 	 * @param _positronVariablesService The Positron variables service.
@@ -200,6 +202,7 @@ export class PositronVariablesViewPane extends PositronViewPane implements IReac
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ILanguageRuntimeService private readonly _languageRuntimeService: ILanguageRuntimeService,
+		@IMenuService private readonly _menuService: IMenuService,
 		@IRuntimeSessionService private readonly _runtimeSessionService: IRuntimeSessionService,
 		@IOpenerService openerService: IOpenerService,
 		@IPositronVariablesService private readonly _positronVariablesService: IPositronVariablesService,
@@ -280,6 +283,7 @@ export class PositronVariablesViewPane extends PositronViewPane implements IReac
 				keybindingService={this.keybindingService}
 				languageRuntimeService={this._languageRuntimeService}
 				layoutService={this._layoutService}
+				menuService={this._menuService}
 				notificationService={this._notificationService}
 				positronVariablesService={this._positronVariablesService}
 				reactComponentContainer={this}

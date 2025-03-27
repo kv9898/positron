@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (C) 2022-2024 Posit Software, PBC. All rights reserved.
+ *  Copyright (C) 2022-2025 Posit Software, PBC. All rights reserved.
  *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 
 // Other dependencies.
 import { IHoverService } from '../../hover/browser/hover.js';
+import { IMenuService } from '../../actions/common/actions.js';
 import { unmnemonicLabel } from '../../../base/common/labels.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { ICommandService } from '../../commands/common/commands.js';
@@ -33,6 +34,7 @@ export interface PositronActionBarServices {
 	readonly contextMenuService: IContextMenuService;
 	readonly hoverService: IHoverService;
 	readonly keybindingService: IKeybindingService;
+	readonly menuService: IMenuService;
 }
 
 /**

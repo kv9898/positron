@@ -37,6 +37,7 @@ import { PositronDataExplorerEditorInput } from './positronDataExplorerEditorInp
 import { PositronDataExplorerClosed, PositronDataExplorerClosedStatus } from '../../../browser/positronDataExplorer/components/dataExplorerClosed/positronDataExplorerClosed.js';
 import { POSITRON_DATA_EXPLORER_IS_COLUMN_SORTING, POSITRON_DATA_EXPLORER_IS_PLAINTEXT, POSITRON_DATA_EXPLORER_LAYOUT } from './positronDataExplorerContextKeys.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IMenuService } from '../../../../platform/actions/common/actions.js';
 
 /**
  * IPositronDataExplorerEditorOptions interface.
@@ -217,6 +218,7 @@ export class PositronDataExplorerEditor extends EditorPane implements IPositronD
 	 * @param _hoverService The hover service.
 	 * @param _keybindingService The keybinding service.
 	 * @param _layoutService The layout service.
+	 * @param _menuService The menu service.
 	 * @param _positronDataExplorerService The Positron data explorer service.
 	 * @param storageService The storage service.
 	 * @param telemetryService The telemetry service.
@@ -233,6 +235,7 @@ export class PositronDataExplorerEditor extends EditorPane implements IPositronD
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
+		@IMenuService private readonly _menuService: IMenuService,
 		@IPositronDataExplorerService private readonly _positronDataExplorerService: IPositronDataExplorerService,
 		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -383,6 +386,7 @@ export class PositronDataExplorerEditor extends EditorPane implements IPositronD
 						instance={positronDataExplorerInstance}
 						keybindingService={this._keybindingService}
 						layoutService={this._layoutService}
+						menuService={this._menuService}
 						onClose={() => this._group.closeEditor(this.input)}
 					/>
 				);

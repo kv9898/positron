@@ -108,6 +108,7 @@ export class EditorActionBarControl extends Disposable {
 				editorActionBarFactory={editorActionBarFactory}
 				hoverService={this._hoverService}
 				keybindingService={this._keybindingService}
+				menuService={this._menuService}
 			/>
 		);
 	}

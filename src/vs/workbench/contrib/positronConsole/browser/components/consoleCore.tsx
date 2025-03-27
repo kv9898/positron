@@ -39,7 +39,7 @@ interface ConsoleCoreProps {
  */
 export const ConsoleCore = (props: ConsoleCoreProps) => {
 	// Calculate the adjusted height (the height minus the action bar height).
-	const adjustedHeight = props.height - 32;
+	const adjustedHeight = props.height - 32 - 32;
 
 	// Hooks.
 	const positronConsoleContext = usePositronConsoleContext();
@@ -126,54 +126,51 @@ export const ConsoleCore = (props: ConsoleCoreProps) => {
 
 	// Render.
 	return (
-		<div
-			className={positronClassNames('console-core', { 'console-tab-list': multiSessionsEnabled })}
-		>
-			{
-				multiSessionsEnabled
-					? <>
-						<div
-							style={{ height: props.height, width: consolePaneWidth }}
-						>
-							<ActionBar {...props} showDeleteButton={positronConsoleContext.consoleSessionListCollapsed} />
-							{/* #6845 - Only render console instances when the console pane width is greater than 0. */}
-							{consolePaneWidth > 0 &&
-								<div className='console-instances-container'>
-									{positronConsoleContext.positronConsoleInstances.map(positronConsoleInstance =>
-										<ConsoleInstance
-											key={positronConsoleInstance.sessionId}
-											active={positronConsoleInstance.sessionId === positronConsoleContext.activePositronConsoleInstance?.sessionId}
-											height={adjustedHeight}
-											positronConsoleInstance={positronConsoleInstance}
-											reactComponentContainer={props.reactComponentContainer}
-											width={consolePaneWidth}
-										/>
-									)}
-								</div>
-							}
-						</div>
-						<VerticalSplitter
-							configurationService={positronConsoleContext.configurationService}
-							onBeginResize={handleBeginResize}
-							onResize={handleResize}
-						/>
-						{!positronConsoleContext.consoleSessionListCollapsed && <ConsoleTabList height={props.height} width={consoleTabListWidth} />}
-					</>
-					: <>
-						<ActionBar {...props} />
-						<div className='console-instances-container' style={{ width: props.width, height: adjustedHeight }}>
-							{positronConsoleContext.positronConsoleInstances.map(positronConsoleInstance =>
-								<ConsoleInstance
-									key={positronConsoleInstance.runtimeMetadata.languageId}
-									active={positronConsoleInstance === positronConsoleContext.activePositronConsoleInstance}
-									height={adjustedHeight}
-									positronConsoleInstance={positronConsoleInstance}
-									reactComponentContainer={props.reactComponentContainer}
-									width={props.width}
-								/>
-							)}
-						</div>
-					</>
+		<div className={positronClassNames('console-core', { 'console-tab-list': multiSessionsEnabled })}>
+			{multiSessionsEnabled &&
+				<>
+					<div className='yaya7' style={{ height: props.height, width: consolePaneWidth }}>
+						<ActionBar {...props} showDeleteButton={positronConsoleContext.consoleSessionListCollapsed} />
+						{/* #6845 - Only render console instances when the console pane width is greater than 0. */}
+						{consolePaneWidth > 0 &&
+							<div className='console-instances-container'>
+								{positronConsoleContext.positronConsoleInstances.map(positronConsoleInstance =>
+									<ConsoleInstance
+										key={positronConsoleInstance.sessionId}
+										active={positronConsoleInstance.sessionId === positronConsoleContext.activePositronConsoleInstance?.sessionId}
+										height={adjustedHeight}
+										positronConsoleInstance={positronConsoleInstance}
+										reactComponentContainer={props.reactComponentContainer}
+										width={consolePaneWidth}
+									/>
+								)}
+							</div>
+						}
+					</div>
+					<VerticalSplitter
+						configurationService={positronConsoleContext.configurationService}
+						onBeginResize={handleBeginResize}
+						onResize={handleResize}
+					/>
+					{!positronConsoleContext.consoleSessionListCollapsed && <ConsoleTabList height={props.height} width={consoleTabListWidth} />}
+				</>
+			}
+			{!multiSessionsEnabled &&
+				<>
+					<ActionBar {...props} />
+					<div className='console-instances-container' style={{ width: props.width, height: adjustedHeight }}>
+						{positronConsoleContext.positronConsoleInstances.map(positronConsoleInstance =>
+							<ConsoleInstance
+								key={positronConsoleInstance.runtimeMetadata.languageId}
+								active={positronConsoleInstance === positronConsoleContext.activePositronConsoleInstance}
+								height={adjustedHeight}
+								positronConsoleInstance={positronConsoleInstance}
+								reactComponentContainer={props.reactComponentContainer}
+								width={props.width}
+							/>
+						)}
+					</div>
+				</>
 			}
 		</div>
 	);
