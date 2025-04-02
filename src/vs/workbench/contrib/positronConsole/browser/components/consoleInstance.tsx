@@ -609,15 +609,17 @@ export const ConsoleInstance = (props: ConsoleInstanceProps) => {
 	return (
 		<div
 			ref={consoleInstanceRef}
-			aria-controls={`panel-${props.positronConsoleInstance.sessionMetadata.sessionId}`}
+			aria-labelledby={`console-panel-${props.positronConsoleInstance.sessionMetadata.sessionId}`}
 			className='console-instance'
 			data-testid={`console-${props.positronConsoleInstance.sessionMetadata.sessionId}`}
+			role='tabpanel'
 			style={{
 				width: adjustedWidth,
 				height: props.height,
 				whiteSpace: wordWrap ? 'pre-wrap' : 'pre',
 				zIndex: props.active ? 'auto' : -1
 			}}
+			tabIndex={0}
 			onClick={clickHandler}
 			onKeyDown={keyDownHandler}
 			onMouseDown={mouseDownHandler}

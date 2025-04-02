@@ -52,28 +52,30 @@ const ConsoleTab = ({ positronConsoleInstance, onClick }: ConsoleTabProps) => {
 
 	const sessionId = positronConsoleInstance.sessionMetadata.sessionId;
 
-	return (<div
-		key={`tab-${sessionId}`}
-		aria-label={positronConsoleInstance.sessionMetadata.sessionName}
-		aria-labelledby={`console-panel-${sessionId}`}
-		aria-selected={positronConsoleContext.activePositronConsoleInstance?.sessionMetadata.sessionId === sessionId}
-		className={`tab-button ${positronConsoleContext.activePositronConsoleInstance?.sessionMetadata.sessionId === sessionId && 'tab-button--active'}`}
-		data-testid={`console-tab-${positronConsoleInstance.sessionMetadata.sessionId}`}
-		role='tab'
-		onClick={() => onClick(positronConsoleInstance)}
-	>
-		<ConsoleInstanceState positronConsoleInstance={positronConsoleInstance} />
-		<img
-			className='icon'
-			src={`data:image/svg+xml;base64,${positronConsoleInstance.runtimeMetadata.base64EncodedIconSvg}`}
-		/>
-		<p className='session-name'>
-			{positronConsoleInstance.sessionMetadata.sessionName}
-		</p>
-		<button className='delete-button' data-testid='trash-session' disabled={deleteDisabled} onClick={evt => handleTabDeleteClick(evt, positronConsoleInstance)}>
-			<span className='codicon codicon-trash' />
-		</button>
-	</div>)
+	return (
+		<div
+			key={`tab-${sessionId}`}
+			aria-controls={`console-panel-${sessionId}`}
+			aria-label={positronConsoleInstance.sessionMetadata.sessionName}
+			aria-selected={positronConsoleContext.activePositronConsoleInstance?.sessionMetadata.sessionId === sessionId}
+			className={`tab-button ${positronConsoleContext.activePositronConsoleInstance?.sessionMetadata.sessionId === sessionId && 'tab-button--active'}`}
+			data-testid={`console-tab-${positronConsoleInstance.sessionMetadata.sessionId}`}
+			role='tab'
+			onClick={() => onClick(positronConsoleInstance)}
+		>
+			<ConsoleInstanceState positronConsoleInstance={positronConsoleInstance} />
+			<img
+				className='icon'
+				src={`data:image/svg+xml;base64,${positronConsoleInstance.runtimeMetadata.base64EncodedIconSvg}`}
+			/>
+			<p className='session-name'>
+				{positronConsoleInstance.sessionMetadata.sessionName}
+			</p>
+			<button className='delete-button' data-testid='trash-session' disabled={deleteDisabled} onClick={evt => handleTabDeleteClick(evt, positronConsoleInstance)}>
+				<span className='codicon codicon-trash' />
+			</button>
+		</div>
+	)
 }
 
 
@@ -123,6 +125,7 @@ export const ConsoleTabList = (props: ConsoleTabListProps) => {
 	// Render.
 	return (
 		<div
+			aria-orientation='vertical'
 			className='tabs-container'
 			role='tablist'
 			style={{ height: props.height, width: props.width }}
