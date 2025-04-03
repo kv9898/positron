@@ -467,7 +467,7 @@ export function getLanguageModels() {
 	];
 
 	// Check if the user disabled the Anthropic SDK. This is for development purposes.
-	const useAnthropicSdk = vscode.workspace.getConfiguration('positron.assistant').get('useAnthropicSdk', false);
+	const useAnthropicSdk = vscode.workspace.getConfiguration('positron.assistant').get('useAnthropicSdk', true);
 	const anthropicClass = useAnthropicSdk ? AnthropicLanguageModel : AnthropicAILanguageModel;
 
 	const languageModels = [
