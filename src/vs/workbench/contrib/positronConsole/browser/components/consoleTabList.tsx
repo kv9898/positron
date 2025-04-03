@@ -15,13 +15,19 @@ import { ConsoleInstanceState } from './consoleInstanceState.js';
 import { usePositronConsoleContext } from '../positronConsoleContext.js';
 import { IPositronConsoleInstance } from '../../../../services/positronConsole/browser/interfaces/positronConsoleService.js';
 
+/**
+ * The minimum width required for the delete action to be displayed on the console tab.
+ * The width of the tab is set to 108px to accommodate the icon, session name, and delete button.
+ */
+const MINIMUM_ACTION_CONSOLE_TAB_WIDTH = 108;
 
 interface ConsoleTabProps {
 	positronConsoleInstance: IPositronConsoleInstance;
+	width: number; // The width of the console tab list.
 	onClick: (instance: IPositronConsoleInstance) => void;
 }
 
-const ConsoleTab = ({ positronConsoleInstance, onClick }: ConsoleTabProps) => {
+const ConsoleTab = ({ positronConsoleInstance, width, onClick }: ConsoleTabProps) => {
 	const positronConsoleContext = usePositronConsoleContext();
 	const [deleteDisabled, setDeleteDisabled] = useState(false);
 
@@ -71,9 +77,11 @@ const ConsoleTab = ({ positronConsoleInstance, onClick }: ConsoleTabProps) => {
 			<p className='session-name'>
 				{positronConsoleInstance.sessionMetadata.sessionName}
 			</p>
-			<button className='delete-button' data-testid='trash-session' disabled={deleteDisabled} onClick={evt => handleTabDeleteClick(evt, positronConsoleInstance)}>
-				<span className='codicon codicon-trash' />
-			</button>
+			{width >= MINIMUM_ACTION_CONSOLE_TAB_WIDTH &&
+				<button className='delete-button' data-testid='trash-session' disabled={deleteDisabled} onClick={evt => handleTabDeleteClick(evt, positronConsoleInstance)}>
+					<span className='codicon codicon-trash' />
+				</button>
+			}
 		</div>
 	)
 }
@@ -134,6 +142,7 @@ export const ConsoleTabList = (props: ConsoleTabListProps) => {
 				<ConsoleTab
 					key={positronConsoleInstance.sessionId}
 					positronConsoleInstance={positronConsoleInstance}
+					width={props.width}
 					onClick={() => handleTabClick(positronConsoleInstance.sessionId)}
 				/>
 			)}
