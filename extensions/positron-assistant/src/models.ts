@@ -18,6 +18,7 @@ import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { replaceBinaryMessageParts, toAIMessage } from './utils';
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 import { fromNodeProviderChain } from '@aws-sdk/credential-providers';
+import { AnthropicLanguageModel } from './anthropic';
 
 /**
  * Models used by chat participants and for vscode.lm.* API functionality.
@@ -242,7 +243,7 @@ abstract class AILanguageModel implements positron.ai.LanguageModelChatProvider 
 	}
 }
 
-class AnthropicLanguageModel extends AILanguageModel implements positron.ai.LanguageModelChatProvider {
+class AnthropicAILanguageModel extends AILanguageModel implements positron.ai.LanguageModelChatProvider {
 	protected model: ai.LanguageModelV1;
 
 	static source: positron.ai.LanguageModelSource = {
@@ -458,27 +459,37 @@ export class AWSLanguageModel extends AILanguageModel implements positron.ai.Lan
 
 //#endregion
 //#region Module exports
+export function getLanguageModels() {
+	const testLanguageModels = [
+		AWSLanguageModel,
+		EchoLanguageModel,
+		ErrorLanguageModel,
+	];
+
+	// Check if the user disabled the Anthropic SDK. This is for development purposes.
+	const useAnthropicSdk = vscode.workspace.getConfiguration('positron.assistant').get('useAnthropicSdk', false);
+	const anthropicClass = useAnthropicSdk ? AnthropicLanguageModel : AnthropicAILanguageModel;
+
+	const languageModels = [
+		...testLanguageModels,
+		anthropicClass,
+		AzureLanguageModel,
+		GoogleLanguageModel,
+		MistralLanguageModel,
+		OllamaLanguageModel,
+		OpenAILanguageModel,
+		OpenRouterLanguageModel,
+		VertexLanguageModel,
+	];
+	return languageModels;
+}
 
 export function newLanguageModel(config: ModelConfig): positron.ai.LanguageModelChatProvider {
-	const providerClasses = {
-		'echo': EchoLanguageModel,
-		'error': ErrorLanguageModel,
-		'anthropic': AnthropicLanguageModel,
-		'azure': AzureLanguageModel,
-		'bedrock': AWSLanguageModel,
-		'google': GoogleLanguageModel,
-		'mistral': MistralLanguageModel,
-		'ollama': OllamaLanguageModel,
-		'openai': OpenAILanguageModel,
-		'openrouter': OpenRouterLanguageModel,
-		'vertex': VertexLanguageModel,
-	};
-
-	if (!(config.provider in providerClasses)) {
+	const providerClass = getLanguageModels().find((cls) => cls.source.provider.id === config.provider);
+	if (!providerClass) {
 		throw new Error(`Unsupported chat provider: ${config.provider}`);
 	}
-
-	return new providerClasses[config.provider as keyof typeof providerClasses](config);
+	return new providerClass(config);
 }
 
 class GoogleLanguageModel extends AILanguageModel implements positron.ai.LanguageModelChatProvider {
@@ -507,21 +518,3 @@ class GoogleLanguageModel extends AILanguageModel implements positron.ai.Languag
 		})(this._config.model);
 	}
 }
-
-export const testLanguageModels = [
-	AWSLanguageModel,
-	EchoLanguageModel,
-	ErrorLanguageModel,
-];
-
-export const languageModels = [
-	...testLanguageModels,
-	AnthropicLanguageModel,
-	AzureLanguageModel,
-	GoogleLanguageModel,
-	MistralLanguageModel,
-	OllamaLanguageModel,
-	OpenAILanguageModel,
-	OpenRouterLanguageModel,
-	VertexLanguageModel,
-];
