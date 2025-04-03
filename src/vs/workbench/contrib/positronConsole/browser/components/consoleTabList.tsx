@@ -31,8 +31,11 @@ const ConsoleTab = ({ positronConsoleInstance, width, onClick }: ConsoleTabProps
 	const positronConsoleContext = usePositronConsoleContext();
 	const [deleteDisabled, setDeleteDisabled] = useState(false);
 
-	const handleTabDeleteClick = async (evt: React.MouseEvent<HTMLButtonElement, MouseEvent>, consoleInstance: IPositronConsoleInstance) => {
-		evt.stopPropagation();
+	const handleDelete = async (
+		e: React.MouseEvent<HTMLButtonElement, MouseEvent>,
+		consoleInstance: IPositronConsoleInstance
+	) => {
+		e.stopPropagation();
 
 		// Prevent the button from being clicked multiple times
 		setDeleteDisabled(true);
@@ -78,7 +81,12 @@ const ConsoleTab = ({ positronConsoleInstance, width, onClick }: ConsoleTabProps
 				{positronConsoleInstance.sessionMetadata.sessionName}
 			</p>
 			{width >= MINIMUM_ACTION_CONSOLE_TAB_WIDTH &&
-				<button className='delete-button' data-testid='trash-session' disabled={deleteDisabled} onClick={evt => handleTabDeleteClick(evt, positronConsoleInstance)}>
+				<button
+					className='delete-button'
+					data-testid='trash-session'
+					disabled={deleteDisabled}
+					onClick={evt => handleDelete(evt, positronConsoleInstance)}
+				>
 					<span className='codicon codicon-trash' />
 				</button>
 			}

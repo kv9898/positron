@@ -624,7 +624,8 @@ export const ConsoleInstance = (props: ConsoleInstanceProps) => {
 			onKeyDown={keyDownHandler}
 			onMouseDown={mouseDownHandler}
 			onScroll={scrollHandler}
-			onWheel={wheelHandler}>
+			onWheel={wheelHandler}
+		>
 			<div
 				ref={consoleInstanceContainerRef}
 				className='console-instance-container'
