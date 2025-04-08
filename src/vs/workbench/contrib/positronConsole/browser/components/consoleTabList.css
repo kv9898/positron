@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .tabs-container {
-	border-top: 0.5px solid var(--positronActionBar-border);
+	border-top: 1px solid var(--positronActionBar-border);
 	background-color: var(--vscode-tab-inactiveBackground);
 	flex-grow: 1;
 	overflow-y: auto;
@@ -12,8 +12,15 @@
 
 .tabs-container .tab-button {
 	background-color: inherit;
-	border: none;
+
+	/**
+	* The transparent border allows for a smooth transition when switching between tabs.
+	* The active tab will have a solid border, while the inactive tabs will have a transparent border.
+	* This prevents any flickering or visual disruption when switching between tabs by maintaining a
+	* consistent tab width.
+	*/
 	border-left: 1px solid transparent;
+	color: var(--vscode-foreground);
 	cursor: pointer;
 	height: 22px;
 	padding: 0 10px;
@@ -29,14 +36,6 @@
 	align-items: center;
 }
 
-.tabs-container .tab-button:focus {
-	outline: none;
-}
-
-.tabs-container .tab-button:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-}
-
 .tabs-container .tab-button:hover {
 	background-color: var(--vscode-list-hoverBackground);
 }
@@ -48,10 +47,6 @@
 
 .tabs-container .tab-button--active:hover {
 	background-color: var(--vscode-list-activeSelectionBackground);
-}
-
-.tabs-container .tab-button {
-	color: var(--vscode-foreground);
 }
 
 .tabs-container .tab-button .icon {
@@ -86,10 +81,6 @@
 }
 
 .tabs-container .tab-button .delete-button:focus {
-	outline: none;
-}
-
-.tabs-container .tab-button .delete-button:focus-visible {
 	border-radius: 3px;
 	outline: 1px solid var(--vscode-focusBorder);
 }
