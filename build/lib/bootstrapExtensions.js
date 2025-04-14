@@ -103,7 +103,20 @@ function getBootstrapExtensionStream(extension) {
     if (isUpToDate(extension)) {
         log('[extensions]', `${extension.name}@${extension.version} up to date`, ansiColors.green('✔︎'));
         return vfs.src(['**'], { cwd: getExtensionPath(extension), dot: true })
-            .pipe((0, gulp_rename_1.default)(p => p.dirname = `${extension.name}/${p.dirname}`));
+            .pipe((0, gulp_rename_1.default)(p => {
+            if (p.dirname === undefined) {
+                p.dirname = `${extension.name}/${p.dirname}`;
+                return;
+            }
+            const dirParts = p.dirname.split(path.sep);
+            const isArchDir = dirParts[0] === 'arm64' || dirParts[0] === 'x64';
+            if (isArchDir) {
+                p.dirname = `${dirParts[0]}/${extension.name}/${dirParts.slice(1).join(path.sep)}`;
+            }
+            else {
+                p.dirname = `${extension.name}/${p.dirname}`;
+            }
+        }));
     }
     return getExtensionDownloadStream(extension);
 }
