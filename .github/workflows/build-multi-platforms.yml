@@ -40,6 +40,20 @@ jobs:
       # - name: 📦 Install dependencies
       #   run: npm ci
 
+      - name: 🛠 Install system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libkrb5-dev \
+            python3 \
+            make \
+            g++ \
+            build-essential
+
+      - name: Install deemon (optional)
+        run: npm install -g deemon
+
       - name: 🔧 Rebuild platform-specific bits
         run: ${{ matrix.rebuild }}
         shell: bash
@@ -47,8 +61,20 @@ jobs:
       - name: 📦 Package VS Code for ${{ matrix.platform }}
         run: npm run gulp vscode-${{ matrix.platform }}
 
-      - name: 📤 Upload output (from parent dir)
+      - name: 📦 Compress packaged VS Code
+        run: |
+          cd ..
+          if [[ "${{ matrix.platform }}" == "win32-x64" || "${{ matrix.platform }}" == "darwin-arm64" ]]; then
+            zip -r ${{ matrix.artifact_name }}.zip ${{ matrix.artifact_name }}
+          elif [[ "${{ matrix.platform }}" == "reh-linux-x64" ]]; then
+            tar -czf ${{ matrix.artifact_name }}.tar.gz ${{ matrix.artifact_name }}
+          fi
+        shell: bash
+
+      - name: 📤 Upload compressed output
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: ../vscode-${{ matrix.platform }}/**
+          name: ${{ matrix.artifact_name }}-archive
+          path: |
+            ../${{ matrix.artifact_name }}.zip
+            ../${{ matrix.artifact_name }}.tar.gz
