@@ -14,7 +14,8 @@ jobs:
         include:
           - platform: win32-x64
             runner: windows-latest
-            rebuild: ./rebuild.ps1 -y
+            # rebuild: ./rebuild.ps1 -y
+            rebuild: ./rebuild.sh -y
             artifact_name: px64
 
           - platform: darwin-arm64
