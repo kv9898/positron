@@ -14,17 +14,17 @@ jobs:
         include:
           - platform: win32-x64
             runner: windows-latest
-            rebuild: ./rebuild.ps1
+            rebuild: ./rebuild.ps1 -y
             artifact_name: px64
 
           - platform: darwin-arm64
             runner: macos-latest
-            rebuild: ./rebuild.sh
+            rebuild: ./rebuild.sh -y
             artifact_name: VSCode-darwin-arm64
 
           - platform: reh-linux-x64
             runner: ubuntu-latest
-            rebuild: ./rebuild.sh
+            rebuild: ./rebuild.sh -y
             artifact_name: vscode-reh-linux-x64
 
     steps:
