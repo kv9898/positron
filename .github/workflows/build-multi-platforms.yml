@@ -49,7 +49,9 @@ jobs:
             python3 \
             make \
             g++ \
-            build-essential
+            build-essential \
+            libx11-dev \
+            libxkbfile-dev
 
       - name: Install deemon (optional)
         run: npm install -g deemon
