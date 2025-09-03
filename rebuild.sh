@@ -1,6 +1,19 @@
 #!/usr/bin/env sh
 
-cat <<- EOF
+# Check for -y or --yes flag to skip interactive prompt
+SKIP_PROMPT=false
+for arg in "$@"
+do
+    case $arg in
+        -y|--yes)
+            SKIP_PROMPT=true
+            shift
+            ;;
+    esac
+done
+
+if [ "$SKIP_PROMPT" = false ]; then
+    cat <<- EOF
 This script will:
 
 - Kill any running build daemons
@@ -20,15 +33,16 @@ Once this script is done, launch the build tasks using:
 from within VSCode.
 
 EOF
-read -p 'Do you want to proceed? [y/N]: ' proceed
+    read -p 'Do you want to proceed? [y/N]: ' proceed
 
-case "${proceed}" in
-[yY]*)	;;
-*)
-	echo "Operation aborted."
-	exit 0
-;;
-esac
+    case "${proceed}" in
+    [yY]*)	;;
+    *)
+        echo "Operation aborted."
+        exit 0
+    ;;
+    esac
+fi
 
 # Kill any running deemons.
 npm run kill-watchd

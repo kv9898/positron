@@ -1,4 +1,12 @@
-Write-Host @"
+param(
+    [switch]$y,
+    [switch]$yes
+)
+
+$SKIP_PROMPT = $y -or $yes
+
+if (-not $SKIP_PROMPT) {
+    Write-Host @"
 This script will:
 
 - Kill any running build daemons
@@ -13,10 +21,11 @@ Once this script is done, launch the build tasks using Ctrl+Shift+B on Windows.
 
 "@
 
-$confirmation = Read-Host "Do you want to proceed? [y/N]"
-if ($confirmation -eq 'n') {
-	Write-Host "Operation aborted."
-    Exit 0
+    $confirmation = Read-Host "Do you want to proceed? [y/N]"
+    if ($confirmation -ne 'y') {
+        Write-Host "Operation aborted."
+        Exit 0
+    }
 }
 
 # Kill any running deemons.
