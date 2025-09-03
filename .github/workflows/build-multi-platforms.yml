@@ -14,18 +14,14 @@ jobs:
         include:
           - platform: win32-x64
             runner: windows-latest
-            # rebuild: ./rebuild.ps1 -y
-            rebuild: ./rebuild.sh -y
             artifact_name: px64
 
           - platform: darwin-arm64
             runner: macos-latest
-            rebuild: ./rebuild.sh -y
             artifact_name: VSCode-darwin-arm64
 
           - platform: reh-linux-x64
             runner: ubuntu-latest
-            rebuild: ./rebuild.sh -y
             artifact_name: vscode-reh-linux-x64
 
     steps:
@@ -36,9 +32,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-
-      # - name: 📦 Install dependencies
-      #   run: npm ci
 
       - name: 🛠 Install system dependencies
         if: runner.os == 'Linux'
@@ -53,12 +46,13 @@ jobs:
             libx11-dev \
             libxkbfile-dev
 
-      - name: Install deemon (optional)
-        run: npm install -g deemon
+      - name: 🛡 Set GITHUB_TOKEN for GitHub API access
+        run: echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
 
-      - name: 🔧 Rebuild platform-specific bits
-        run: ${{ matrix.rebuild }}
-        shell: bash
+      - name: 📦 Install Node.js dependencies
+        run: |
+          npm ci
+          npm --prefix test/e2e ci
 
       - name: 📦 Package VS Code for ${{ matrix.platform }}
         run: npm run gulp vscode-${{ matrix.platform }}
