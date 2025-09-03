@@ -1,0 +1,53 @@
+name: Build Positron Multi-Platform
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build for ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - platform: win32-x64
+            runner: windows-latest
+            rebuild: ./rebuild.ps1
+            artifact_name: px64
+
+          - platform: darwin-arm64
+            runner: macos-latest
+            rebuild: ./rebuild.sh
+            artifact_name: VSCode-darwin-arm64
+
+          - platform: linux-x64
+            runner: ubuntu-latest
+            rebuild: ./rebuild.sh
+            artifact_name: vscode-reh-linux-x64
+
+    steps:
+      - name: 🧾 Checkout source
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔧 Rebuild platform-specific bits
+        run: ${{ matrix.rebuild }}
+        shell: bash
+
+      - name: 📦 Package VS Code for ${{ matrix.platform }}
+        run: npm run gulp vscode-${{ matrix.platform }}
+
+      - name: 📤 Upload output (from parent dir)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ../vscode-${{ matrix.platform }}/**
