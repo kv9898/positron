@@ -19,6 +19,7 @@ import { markBedrockCacheBreakpoint, processMessages, toAIMessage } from './util
 import { AmazonBedrockProvider, createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 import { fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import { AnthropicLanguageModel } from './anthropic';
+import { AnthropicCompatibleLanguageModel } from './anthropic-compatible';
 import { DEFAULT_MAX_TOKEN_OUTPUT } from './constants.js';
 import { log, recordRequestTokenUsage, recordTokenUsage } from './extension.js';
 import { TokenUsage } from './tokens.js';
@@ -859,6 +860,7 @@ export function getLanguageModels() {
 	const languageModels = [
 		...testLanguageModels,
 		anthropicClass,
+		AnthropicCompatibleLanguageModel,
 		AzureLanguageModel,
 		GoogleLanguageModel,
 		MistralLanguageModel,

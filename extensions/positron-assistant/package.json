@@ -282,6 +282,18 @@
       {
         "vendor": "anthropic-api",
         "displayName": "Anthropic"
+      },
+      {
+        "vendor": "anthropic-compatible",
+        "displayName": "Anthropic Compatible"
+      },
+      {
+        "vendor": "openai",
+        "displayName": "OpenAI"
+      },
+      {
+        "vendor": "openrouter",
+        "displayName": "OpenRouter"
       }
     ],
     "languageModelTools": [
