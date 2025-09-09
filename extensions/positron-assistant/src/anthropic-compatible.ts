@@ -8,10 +8,11 @@ import * as vscode from 'vscode';
 import Anthropic from '@anthropic-ai/sdk';
 import { ModelConfig } from './config';
 import { isLanguageModelImagePart, LanguageModelImagePart } from './languageModelParts.js';
-import { isChatImagePart, isCacheBreakpointPart, parseCacheBreakpoint, processMessages } from './utils.js';
+import { isChatImagePart, isCacheBreakpointPart, parseCacheBreakpoint, processMessages, promptTsxPartToString } from './utils.js';
 import { DEFAULT_MAX_TOKEN_OUTPUT } from './constants.js';
 import { log, recordTokenUsage, recordRequestTokenUsage } from './extension.js';
 import { availableModels } from './models.js';
+import { TokenUsage } from './tokens.js';
 
 /**
  * Options for controlling cache behavior in the Anthropic language model.
@@ -176,6 +177,18 @@ export class AnthropicCompatibleLanguageModel implements positron.ai.LanguageMod
 			this.onText(textDelta, progress);
 		});
 
+		// Report token usage information as part of the output stream.
+		stream.on('streamEvent', (event) => {
+			if (event.type === 'message_start' || event.type === 'message_delta') {
+				const usage = event.type === 'message_start' ? event.message.usage : event.usage;
+				const part: any = vscode.LanguageModelDataPart.json({
+					type: 'usage',
+					data: toTokenUsage(usage)
+				});
+				progress.report({ index: 0, part: part });
+			}
+		});
+
 		try {
 			await stream.done();
 		} catch (error) {
@@ -213,24 +226,16 @@ export class AnthropicCompatibleLanguageModel implements positron.ai.LanguageMod
 
 		// Record token usage
 		if (message.usage && this._context) {
-			const inputTokens = message.usage.input_tokens || 0;
-			const outputTokens = message.usage.output_tokens || 0;
-			recordTokenUsage(this._context, this.provider, inputTokens, outputTokens);
+			const tokens = toTokenUsage(message.usage);
+			recordTokenUsage(this._context, this.provider, tokens);
 
 			// Also record token usage by request ID if available
 			const requestId = (options.modelOptions as any)?.requestId;
 			if (requestId) {
-				recordRequestTokenUsage(requestId, this.provider, inputTokens, outputTokens);
+				recordRequestTokenUsage(requestId, this.provider, tokens);
 			}
 		}
 
-		// Return token usage information for display in the chat UI
-		return message.usage ? {
-			tokenUsage: {
-				inputTokens: message.usage.input_tokens || 0,
-				outputTokens: message.usage.output_tokens || 0
-			}
-		} : undefined;
 	}
 
 	get providerName(): string {
@@ -315,6 +320,21 @@ export class AnthropicCompatibleLanguageModel implements positron.ai.LanguageMod
 	}
 }
 
+function toTokenUsage(usage: Anthropic.MessageDeltaUsage): TokenUsage {
+	const input = usage.input_tokens || 0;
+	const output = usage.output_tokens || 0;
+	const cache_creation = usage.cache_creation_input_tokens || 0;
+	const cache_read = usage.cache_read_input_tokens || 0;
+
+	return {
+		inputTokens: input + cache_creation,
+		outputTokens: output,
+		cachedTokens: cache_read,
+		providerMetadata: {
+			anthropic: usage,
+		}
+	};
+}
 function toAnthropicMessages(messages: vscode.LanguageModelChatMessage2[]): Anthropic.MessageParam[] {
 	let userMessageIndex = 0;
 	let assistantMessageIndex = 0;
@@ -433,8 +453,10 @@ function toAnthropicToolResultBlock(
 			content.push(languageModelImagePartToAnthropicImageBlock(resultPart, source, resultDataPart));
 		} else if (resultPart instanceof vscode.LanguageModelDataPart) {
 			// Skip data parts.
+		} else if (resultPart instanceof vscode.LanguageModelPromptTsxPart) {
+			content.push(languageModelPromptTsxPartToAnthropicBlock(resultPart, source, resultDataPart));
 		} else {
-			throw new Error('Unsupported part type on tool result part content');
+			throw new Error(`Unsupported part type on tool result part content: ${JSON.stringify(resultPart)}`);
 		}
 	}
 	return withCacheControl(
@@ -462,6 +484,24 @@ function chatImagePartToAnthropicImageBlock(
 				media_type: part.mimeType as Anthropic.Base64ImageSource['media_type'],
 				data: Buffer.from(part.data).toString('base64'),
 			},
+		},
+		source,
+		dataPart,
+	);
+}
+
+function languageModelPromptTsxPartToAnthropicBlock(
+	part: vscode.LanguageModelPromptTsxPart,
+	source: string,
+	dataPart?: vscode.LanguageModelDataPart,
+): Anthropic.TextBlockParam {
+	// Convert the prompt TSX part to a string representation using the shared utility
+	const text = promptTsxPartToString(part);
+
+	return withCacheControl(
+		{
+			type: 'text',
+			text,
 		},
 		source,
 		dataPart,
