@@ -317,29 +317,29 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			.pipe(rename('out/positron-dts/positron.d.ts'));
 
 		// Bundled Quarto binaries
-		const quarto = getQuartoStream()
-			// Move the Quarto binaries into a `quarto` subdirectory
-			.pipe(rename(f => { f.dirname = path.join('quarto', f.dirname); }))
+		// const quarto = getQuartoStream()
+		// 	// Move the Quarto binaries into a `quarto` subdirectory
+		// 	.pipe(rename(f => { f.dirname = path.join('quarto', f.dirname); }))
 
-			// Skip generated files that start with '._'
-			.pipe(es.mapSync(f => {
-				if (!f.basename.startsWith('._')) {
-					return f;
-				}
-			}))
+		// 	// Skip generated files that start with '._'
+		// 	.pipe(es.mapSync(f => {
+		// 		if (!f.basename.startsWith('._')) {
+		// 			return f;
+		// 		}
+		// 	}))
 
-			// Restore the executable bit on the Quarto binaries. (It's very
-			// unfortunate that gulp doesn't preserve the executable bit when
-			// copying files.)
-			.pipe(util.setExecutableBit([
-				'**/dart',
-				'**/deno',
-				'**/esbuild',
-				'**/pandoc',
-				'**/quarto',
-				'**/sass',
-				'**/typst'
-			]));
+		// 	// Restore the executable bit on the Quarto binaries. (It's very
+		// 	// unfortunate that gulp doesn't preserve the executable bit when
+		// 	// copying files.)
+		// 	.pipe(util.setExecutableBit([
+		// 		'**/dart',
+		// 		'**/deno',
+		// 		'**/esbuild',
+		// 		'**/pandoc',
+		// 		'**/quarto',
+		// 		'**/sass',
+		// 		'**/typst'
+		// 	]));
 
 		// --- End Positron ---
 
@@ -380,7 +380,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			api,
 			// --- Start Positron ---
 			positronApi,
-			quarto,
+			// quarto,
 			moduleSources,
 			// --- End Positron ---
 			telemetry,
