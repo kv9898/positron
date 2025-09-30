@@ -855,6 +855,7 @@ KeybindingsRegistry.registerKeybindingRule({
 });
 
 // Register copy command for output pane
+// This provides a reliable copy mechanism using the clipboard service instead of execCommand
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.output.copySelection',
 	weight: KeybindingWeight.WorkbenchContrib + 1,
