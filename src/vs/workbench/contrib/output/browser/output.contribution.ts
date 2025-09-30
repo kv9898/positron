@@ -877,3 +877,35 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 	}
 });
+
+// Register copy action in context menu for output pane
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.output.copySelectionContextMenu',
+			title: nls.localize2('copyOutput.label', "Copy"),
+			menu: {
+				id: MenuId.EditorContext,
+				when: CONTEXT_IN_OUTPUT,
+				group: '9_cutcopypaste',
+				order: 2
+			}
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const clipboardService = accessor.get(IClipboardService);
+		const codeEditorService = accessor.get(ICodeEditorService);
+		
+		const focusedEditor = codeEditorService.getFocusedCodeEditor();
+		if (focusedEditor) {
+			const selection = focusedEditor.getSelection();
+			if (selection && !selection.isEmpty()) {
+				const model = focusedEditor.getModel();
+				if (model) {
+					const selectedText = model.getValueInRange(selection);
+					await clipboardService.writeText(selectedText);
+				}
+			}
+		}
+	}
+});
