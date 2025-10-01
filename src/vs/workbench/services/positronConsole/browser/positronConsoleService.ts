@@ -965,6 +965,14 @@ class PositronConsoleInstance extends Disposable implements IPositronConsoleInst
 	private _externalExecutionIds: Set<string> = new Set<string>();
 
 	/**
+	 * The set of silent execution IDs. This is used to track execution
+	 * requests that should not produce UI side effects, so when the runtime
+	 * rebroadcasts the input message, we can skip creating ActivityItemInput
+	 * entries for them.
+	 */
+	private _silentExecutionIds: Set<string> = new Set<string>();
+
+	/**
 	 * Gets or sets the session, if attached.
 	 */
 	private _session: ILanguageRuntimeSession | undefined;
@@ -1494,6 +1502,7 @@ class PositronConsoleInstance extends Disposable implements IPositronConsoleInst
 			// Clear the console.
 			this._runtimeItems = [];
 			this._runtimeItemActivities.clear();
+			this._silentExecutionIds.clear();
 			this._onDidChangeRuntimeItemsEmitter.fire();
 			this._onDidClearConsoleEmitter.fire();
 		}
@@ -2170,6 +2179,13 @@ class PositronConsoleInstance extends Disposable implements IPositronConsoleInst
 				);
 			}
 
+			// Check if this is a silent execution. If so, skip creating the UI element
+			// and remove it from the tracking set.
+			if (this._silentExecutionIds.has(languageRuntimeMessageInput.parent_id)) {
+				this._silentExecutionIds.delete(languageRuntimeMessageInput.parent_id);
+				return;
+			}
+
 			// Add or update the runtime item activity.
 			this.addOrUpdateRuntimeItemActivity(
 				languageRuntimeMessageInput.parent_id,
@@ -2555,6 +2571,9 @@ class PositronConsoleInstance extends Disposable implements IPositronConsoleInst
 					}
 				}
 			}
+
+			// Clear tracking sets for execution IDs
+			this._silentExecutionIds.clear();
 
 			// Dispose of the runtime event handlers.
 			this._runtimeDisposableStore.clear();
@@ -2963,6 +2982,10 @@ class PositronConsoleInstance extends Disposable implements IPositronConsoleInst
 			// replaced with the real ActivityItemInput when the runtime sends it (which can take a
 			// moment or two to happen).
 			this.addOrUpdateRuntimeItemActivity(id, activityItemInput);
+		} else {
+			// Track silent executions so we can skip creating UI elements
+			// when the runtime rebroadcasts the input message.
+			this._silentExecutionIds.add(id);
 		}
 
 		// If this is an interactive submission, check to see the text we just executed is
