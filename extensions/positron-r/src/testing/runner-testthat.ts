@@ -119,14 +119,15 @@ export async function runThatTest(
 		const escapedLabel = test?.label.replace(/(['"`])/g, '\\$1');
 		const filterInsert = isSingleTest ? ` filter = '${escapedLabel || '<all tests>'}', ` : '';
 		
-		// For non-packages, we need to source the reporter and use testthat functions directly
-		const testsDir = testPath.includes('/tests/testthat/') 
-			? testPath.substring(0, testPath.indexOf('/tests/testthat/') + '/tests/testthat'.length)
+		// For test_dir, we need the tests/testthat directory path
+		// For test_file, we use the file path directly
+		const testthatPath = testType === ItemType.Directory 
+			? testPath + '/tests/testthat'
 			: testPath;
 		
 		rCall =
 			`source('${testReporterPath}/R/reporter.R');` +
-			`testthat::${testthatMethod}('${testType === ItemType.Directory ? testsDir : testPath}',` +
+			`testthat::${testthatMethod}('${testthatPath}',` +
 			`${filterInsert}reporter = VSCodeReporter())`;
 	}
 	const binpath = RSessionManager.instance.getLastBinpath();
