@@ -24,18 +24,29 @@ export async function runThatTest(
 	run: vscode.TestRun,
 	test?: vscode.TestItem
 ): Promise<string> {
-	// in all scenarios, we execute devtools::SOMETHING() in a child process
+	// in all scenarios, we execute devtools::SOMETHING() or testthat::SOMETHING() in a child process
 	// if we can't get the path to the relevant R executable, no point in continuing
 	if (!RSessionManager.instance.hasLastBinpath()) {
 		return Promise.resolve('No running R runtime to run R package tests.');
 	}
 
-	// devtools 2.4.0 was released 2021-04-07
-	// chosen as minimum version because that's when test_active_file() was introduced
-	// indirectly imposes requirement for testthat >= 3.0.2
-	const devtoolsInstalled = await checkInstalled('devtools', '2.4.0');
-	if (!devtoolsInstalled) {
-		return Promise.resolve('devtools >= 2.4.0 is needed to run R package tests.');
+	const isPackage = testingTools.isPackage;
+
+	// For R packages, require devtools
+	if (isPackage) {
+		// devtools 2.4.0 was released 2021-04-07
+		// chosen as minimum version because that's when test_active_file() was introduced
+		// indirectly imposes requirement for testthat >= 3.0.2
+		const devtoolsInstalled = await checkInstalled('devtools', '2.4.0');
+		if (!devtoolsInstalled) {
+			return Promise.resolve('devtools >= 2.4.0 is needed to run R package tests.');
+		}
+	} else {
+		// For non-package projects, require testthat directly
+		const testthatInstalled = await checkInstalled('testthat', '3.0.2');
+		if (!testthatInstalled) {
+			return Promise.resolve('testthat >= 3.0.2 is needed to run R tests.');
+		}
 	}
 
 	const getType = (testItem?: vscode.TestItem) => {
@@ -92,19 +103,38 @@ export async function runThatTest(
 	// use POSIX path separators in the test-running R snippet for better portability
 	testPath = testPath.replace(/\\/g, '/');
 
-	const devtoolsMethod = testType === ItemType.Directory ? 'test' : 'test_active_file';
-	const escapedLabel = test?.label.replace(/(['"`])/g, '\\$1');
-	const descInsert = isSingleTest ? ` desc = '${escapedLabel || '<all tests>'}', ` : '';
-	const devtoolsCall =
-		`devtools::load_all('${testReporterPath}');` +
-		`devtools::${devtoolsMethod}('${testPath}',` +
-		`${descInsert}reporter = VSCodeReporter)`;
+	let rCall: string;
+	if (isPackage) {
+		// For R packages, use devtools
+		const devtoolsMethod = testType === ItemType.Directory ? 'test' : 'test_active_file';
+		const escapedLabel = test?.label.replace(/(['"`])/g, '\\$1');
+		const descInsert = isSingleTest ? ` desc = '${escapedLabel || '<all tests>'}', ` : '';
+		rCall =
+			`devtools::load_all('${testReporterPath}');` +
+			`devtools::${devtoolsMethod}('${testPath}',` +
+			`${descInsert}reporter = VSCodeReporter)`;
+	} else {
+		// For non-package projects, use testthat directly
+		const testthatMethod = testType === ItemType.Directory ? 'test_dir' : 'test_file';
+		const escapedLabel = test?.label.replace(/(['"`])/g, '\\$1');
+		const filterInsert = isSingleTest ? ` filter = '${escapedLabel || '<all tests>'}', ` : '';
+		
+		// For non-packages, we need to source the reporter and use testthat functions directly
+		const testsDir = testPath.includes('/tests/testthat/') 
+			? testPath.substring(0, testPath.indexOf('/tests/testthat/') + '/tests/testthat'.length)
+			: testPath;
+		
+		rCall =
+			`source('${testReporterPath}/R/reporter.R');` +
+			`testthat::${testthatMethod}('${testType === ItemType.Directory ? testsDir : testPath}',` +
+			`${filterInsert}reporter = VSCodeReporter())`;
+	}
 	const binpath = RSessionManager.instance.getLastBinpath();
-	const command = `"${binpath}" --no-echo -e "${devtoolsCall}"`;
-	LOGGER.info(`devtools call is:\n${command}`);
+	const command = `"${binpath}" --no-echo -e "${rCall}"`;
+	LOGGER.info(`R call is:\n${command}`);
 
 	const wd = testingTools.packageRoot.fsPath;
-	LOGGER.info(`Running devtools call in working directory ${wd}`);
+	LOGGER.info(`Running R call in working directory ${wd}`);
 	const locale = await getLocale();
 	LOGGER.info(`Locale info from active R session: ${JSON.stringify(locale, null, 2)}`);
 	let hostFile = '';

@@ -9,7 +9,7 @@ import { discoverTestFiles, loadTestsFromFile } from './loader';
 import { createTestthatWatchers } from './watcher';
 import { runHandler } from './runner';
 import { LOGGER } from '../extension';
-import { detectRPackage, getRPackageName } from '../contexts';
+import { detectRPackage, getRPackageName, detectTestthat } from '../contexts';
 
 let controller: vscode.TestController | undefined;
 
@@ -56,21 +56,27 @@ function hasTestingController(): boolean {
 }
 
 export async function discoverTests(context: vscode.ExtensionContext) {
-	// Incremental progress re: vetting the workspace folder(s) and R package-hood
+	// Check if this is an R package or a project using testthat
 	const inRPackage = await detectRPackage();
-	if (!inRPackage) {
+	const hasTestthat = await detectTestthat();
+	
+	if (!inRPackage && !hasTestthat) {
 		return;
 	}
+	
 	const packageRoot = await getFirstWorkspaceFolder();
 	// we know packageRoot can't be null, but typescript doesn't know that, so check again
 	if (!packageRoot) {
 		return;
 	}
-	const packageName = await getRPackageName();
+	
+	// Get package name if it's a package, otherwise use workspace folder name
+	const packageName = inRPackage ? await getRPackageName() : packageRoot.fsPath.split(/[/\\]/).pop() || 'R Project';
 
+	const controllerLabel = inRPackage ? 'R Package Test Explorer' : 'R Project Test Explorer';
 	controller = vscode.tests.createTestController(
 		'rPackageTests',
-		'R Package Test Explorer'
+		controllerLabel
 	);
 	context.subscriptions.push(controller);
 	context.subscriptions.push(_onDidDiscoverTestFiles);
@@ -81,6 +87,7 @@ export async function discoverTests(context: vscode.ExtensionContext) {
 		packageName,
 		controller,
 		testItemData,
+		isPackage: inRPackage,
 	};
 	LOGGER.info(`Testthat test explorer enabled for '${packageName}' at '${packageRoot.fsPath}'`);
 

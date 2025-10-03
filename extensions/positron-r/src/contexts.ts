@@ -9,6 +9,10 @@ import { refreshTestthatStatus } from './testing/watcher';
 export async function setContexts(_context: vscode.ExtensionContext): Promise<void> {
 	const isRPackage = await detectRPackage();
 	vscode.commands.executeCommand('setContext', 'isRPackage', isRPackage);
+	
+	const hasTestthat = await detectTestthat();
+	const isRProject = isRPackage || hasTestthat;
+	vscode.commands.executeCommand('setContext', 'isRProject', isRProject);
 
 	await refreshTestthatStatus();
 }
@@ -29,6 +33,18 @@ export async function getRPackageName(): Promise<string> {
 	const packageLines = descriptionLines.filter(line => line.startsWith('Package:'))[0];
 	const packageName = packageLines.split(' ').slice(-1)[0];
 	return packageName;
+}
+
+export async function detectTestthat(): Promise<boolean> {
+	// Check if the workspace has a tests/testthat directory structure
+	if (vscode.workspace.workspaceFolders !== undefined) {
+		const folderUri = vscode.workspace.workspaceFolders[0].uri;
+		const testthatDotRPattern = 'tests/testthat.[Rr]';
+		const pattern = new vscode.RelativePattern(folderUri, testthatDotRPattern);
+		const testthatDotR = await vscode.workspace.findFiles(pattern, null, 1);
+		return testthatDotR.length > 0;
+	}
+	return false;
 }
 
 async function parseRPackageDescription(): Promise<string[]> {
