@@ -1,0 +1,98 @@
+name: Build Positron Multi-Platform
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build for ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # - platform: win32-x64 # temporarily disabled due to EMFILE build issues
+          #   runner: windows-latest
+          #   artifact_name: px64
+
+          - platform: darwin-arm64
+            runner: macos-latest
+            artifact_name: VSCode-darwin-arm64
+
+          - platform: reh-linux-x64
+            runner: ubuntu-latest
+            artifact_name: vscode-reh-linux-x64
+
+    steps:
+      - name: 🧾 Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 🛠 Install system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libkrb5-dev \
+            python3 \
+            make \
+            g++ \
+            build-essential \
+            libx11-dev \
+            libxkbfile-dev
+
+      - name: 🛡 Set GITHUB_TOKEN for GitHub API access
+        run: echo "export GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
+
+      - name: 📦 Install Node.js dependencies
+        run: |
+          npm ci
+          npm --prefix test/e2e ci
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📦 Package VS Code for ${{ matrix.platform }}
+        run: npm run gulp vscode-${{ matrix.platform }}
+
+      - name: 📦 Compress packaged VS Code
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC_DIR="../${{ matrix.artifact_name }}"
+          OUT_ZIP="${GITHUB_WORKSPACE}/${{ matrix.artifact_name }}.zip"
+          OUT_TGZ="${GITHUB_WORKSPACE}/${{ matrix.artifact_name }}.tar.gz"
+
+          if [[ ! -d "$SRC_DIR" ]]; then
+            echo "Source directory $SRC_DIR not found; nothing to compress for ${{ matrix.platform }}."
+            exit 0
+          fi
+
+          case "${{ matrix.platform }}" in
+            win32-x64|darwin-arm64)
+              # create ZIP in workspace; zip the folder from its parent
+              (cd .. && zip -r "$OUT_ZIP" "${{ matrix.artifact_name }}")
+              ;;
+            reh-linux-x64)
+              # create TAR.GZ in workspace; tar from parent
+              tar -C .. -czf "$OUT_TGZ" "${{ matrix.artifact_name }}"
+              ;;
+          esac
+
+      - name: 📤 Upload compressed output
+        if: always()   # still run even if the previous step skipped
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}-archive
+          # No '..' here; files are written into $GITHUB_WORKSPACE
+          path: |
+            ${{ matrix.artifact_name }}.zip
+            ${{ matrix.artifact_name }}.tar.gz
+          if-no-files-found: ignore   # don't fail a platform leg if its archive wasn't produced
