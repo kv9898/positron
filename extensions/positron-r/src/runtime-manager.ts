@@ -169,17 +169,8 @@ export class RRuntimeManager implements positron.LanguageRuntimeManager {
 		sessionMetadata: positron.RuntimeSessionMetadata,
 		sessionName: string): Thenable<positron.LanguageRuntimeSession> {
 
-		// When restoring an existing session, recreate the kernel spec with
-		// the current configuration settings. This ensures that if the session
-		// needs to be restarted (e.g., if it exited), it will use the current
-		// user preferences (like restoreWorkspace).
-		const metadataExtra = runtimeMetadata.extraRuntimeData as RMetadataExtra;
-		const kernelExtra = createJupyterKernelExtra();
-		const kernelSpec = createJupyterKernelSpec(
-			metadataExtra.homepath,
-			runtimeMetadata.runtimeName,
-			sessionMetadata.sessionMode);
-		const session = new RSession(runtimeMetadata, sessionMetadata, kernelSpec, kernelExtra, sessionName);
+		// When restoring an existing session, the kernelspec is stored.
+		const session = new RSession(runtimeMetadata, sessionMetadata, undefined, undefined, sessionName);
 
 		this.updateEnvironment(runtimeMetadata);
 
