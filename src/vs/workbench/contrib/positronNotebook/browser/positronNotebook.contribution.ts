@@ -39,7 +39,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { INotebookEditorOptions } from '../../notebook/browser/notebookBrowser.js';
 import { POSITRON_NOTEBOOK_EDITOR_ID, POSITRON_NOTEBOOK_EDITOR_INPUT_ID } from '../common/positronNotebookCommon.js';
 import { SelectionState } from './selectionMachine.js';
-import { POSITRON_NOTEBOOK_CELL_CONTEXT_KEYS as CELL_CONTEXT_KEYS } from './ContextKeysManager.js';
+import { POSITRON_NOTEBOOK_CELL_CONTEXT_KEYS as CELL_CONTEXT_KEYS, POSITRON_NOTEBOOK_CELL_EDITOR_FOCUSED } from './ContextKeysManager.js';
 import './contrib/undoRedo/positronNotebookUndoRedo.js';
 import { registerAction2, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ExecuteSelectionInConsoleAction } from './ExecuteSelectionInConsoleAction.js';
@@ -325,7 +325,7 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 //#region Notebook Commands
 registerNotebookAction({
 	commandId: 'positronNotebook.selectUp',
-	handler: (notebook) => notebook.selectionStateMachine.moveUp(false),
+	handler: (notebook) => notebook.selectionStateMachine.moveSelectionUp(false),
 	keybinding: {
 		primary: KeyCode.UpArrow,
 		secondary: [KeyCode.KeyK]
@@ -337,7 +337,7 @@ registerNotebookAction({
 
 registerNotebookAction({
 	commandId: 'positronNotebook.selectDown',
-	handler: (notebook) => notebook.selectionStateMachine.moveDown(false),
+	handler: (notebook) => notebook.selectionStateMachine.moveSelectionDown(false),
 	keybinding: {
 		primary: KeyCode.DownArrow,
 		secondary: [KeyCode.KeyJ]
@@ -349,7 +349,7 @@ registerNotebookAction({
 
 registerNotebookAction({
 	commandId: 'positronNotebook.addSelectionDown',
-	handler: (notebook) => notebook.selectionStateMachine.moveDown(true),
+	handler: (notebook) => notebook.selectionStateMachine.moveSelectionDown(true),
 	keybinding: {
 		primary: KeyMod.Shift | KeyCode.DownArrow,
 		secondary: [KeyMod.Shift | KeyCode.KeyJ]
@@ -361,13 +361,45 @@ registerNotebookAction({
 
 registerNotebookAction({
 	commandId: 'positronNotebook.addSelectionUp',
-	handler: (notebook) => notebook.selectionStateMachine.moveUp(true),
+	handler: (notebook) => notebook.selectionStateMachine.moveSelectionUp(true),
 	keybinding: {
 		primary: KeyMod.Shift | KeyCode.UpArrow,
 		secondary: [KeyMod.Shift | KeyCode.KeyK]
 	},
 	metadata: {
 		description: localize('positronNotebook.addSelectionUp', "Extend selection up")
+	}
+});
+
+// Enter key: Enter edit mode when cell is selected but NOT editing
+registerNotebookAction({
+	commandId: 'positronNotebook.cell.edit',
+	handler: (notebook) => {
+		notebook.selectionStateMachine.enterEditor().catch(err => {
+			console.error('Error entering editor:', err);
+		});
+	},
+	keybinding: {
+		primary: KeyCode.Enter
+	},
+	when: POSITRON_NOTEBOOK_CELL_EDITOR_FOCUSED.toNegated(),
+	metadata: {
+		description: localize('positronNotebook.cell.edit', "Enter cell edit mode")
+	}
+});
+
+// Escape key: Exit edit mode when cell editor is focused
+registerNotebookAction({
+	commandId: 'positronNotebook.cell.quitEdit',
+	handler: (notebook) => {
+		notebook.selectionStateMachine.exitEditor();
+	},
+	keybinding: {
+		primary: KeyCode.Escape,
+		when: POSITRON_NOTEBOOK_CELL_EDITOR_FOCUSED
+	},
+	metadata: {
+		description: localize('positronNotebook.cell.quitEdit', "Exit cell edit mode")
 	}
 });
 
@@ -641,7 +673,7 @@ registerCellCommand({
 			// which already handles selection and focus of the new cell in Edit mode
 		} else {
 			// Only move down if we didn't add a cell
-			notebook.selectionStateMachine.moveDown(false);
+			notebook.selectionStateMachine.moveSelectionDown(false);
 		}
 	},
 	editMode: true,  // Allow execution from edit mode
@@ -726,6 +758,48 @@ registerCellCommand({
 	},
 	metadata: {
 		description: localize('positronNotebook.cell.pasteCellsAbove', "Paste Cell Above")
+	}
+});
+
+// Move cell up
+registerCellCommand({
+	commandId: 'positronNotebook.cell.moveUp',
+	handler: (cell, notebook) => notebook.moveCellUp(cell),
+	multiSelect: true,  // Moves all selected cells
+	editMode: true,     // Allow from editor focus
+	when: CELL_CONTEXT_KEYS.canMoveUp,
+	actionBar: {
+		icon: 'codicon-arrow-up',
+		position: 'menu',
+		order: 110,
+		category: 'Cell Order'
+	},
+	keybinding: {
+		primary: KeyMod.Alt | KeyCode.UpArrow
+	},
+	metadata: {
+		description: localize('positronNotebook.cell.moveUp', "Move cell up")
+	}
+});
+
+// Move cell down
+registerCellCommand({
+	commandId: 'positronNotebook.cell.moveDown',
+	handler: (cell, notebook) => notebook.moveCellDown(cell),
+	multiSelect: true,  // Moves all selected cells
+	editMode: true,     // Allow from editor focus
+	when: CELL_CONTEXT_KEYS.canMoveDown,
+	actionBar: {
+		icon: 'codicon-arrow-down',
+		position: 'menu',
+		order: 111,
+		category: 'Cell Order'
+	},
+	keybinding: {
+		primary: KeyMod.Alt | KeyCode.DownArrow
+	},
+	metadata: {
+		description: localize('positronNotebook.cell.moveDown', "Move cell down")
 	}
 });
 

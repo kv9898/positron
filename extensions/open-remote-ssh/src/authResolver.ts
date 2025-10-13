@@ -1,3 +1,11 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Posit Software, PBC. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+// The code in extensions/open-remote-ssh has been adapted from https://github.com/jeanp413/open-remote-ssh,
+// which is licensed under the MIT license.
+
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as net from 'net';
@@ -5,7 +13,7 @@ import * as stream from 'stream';
 import { SocksClient, SocksClientOptions } from 'socks';
 import * as vscode from 'vscode';
 import * as ssh2 from 'ssh2';
-import { ParsedKey } from 'ssh2-streams';
+import type { ParsedKey } from 'ssh2-streams';
 import Log from './common/logger';
 import SSHDestination from './ssh/sshDestination';
 import SSHConnection, { SSHTunnelConfig } from './ssh/sshConnection';
@@ -121,7 +129,7 @@ export class RemoteSSHResolver implements vscode.RemoteAuthorityResolver, vscode
 						});
 					for (let i = 0; i < proxyJumps.length; i++) {
 						const [proxy, proxyHostConfig] = proxyJumps[i];
-						const proxyhHostName = proxyHostConfig['HostName'] || proxy.hostname;
+						const proxyHostName = proxyHostConfig['HostName'] || proxy.hostname;
 						const proxyUser = proxyHostConfig['User'] || proxy.user || sshUser;
 						const proxyPort = proxyHostConfig['Port'] ? parseInt(proxyHostConfig['Port'], 10) : (proxy.port || sshPort);
 
@@ -132,9 +140,9 @@ export class RemoteSSHResolver implements vscode.RemoteAuthorityResolver, vscode
 						const proxyIdentitiesOnly = (proxyHostConfig['IdentitiesOnly'] || 'no').toLowerCase() === 'yes';
 						const proxyIdentityKeys = await gatherIdentityFiles(proxyIdentityFiles, this.sshAgentSock, proxyIdentitiesOnly, this.logger);
 
-						const proxyAuthHandler = this.getSSHAuthHandler(proxyUser, proxyhHostName, proxyIdentityKeys, preferredAuthentications);
+						const proxyAuthHandler = this.getSSHAuthHandler(proxyUser, proxyHostName, proxyIdentityKeys, preferredAuthentications);
 						const proxyConnection = new SSHConnection({
-							host: !proxyStream ? proxyhHostName : undefined,
+							host: !proxyStream ? proxyHostName : undefined,
 							port: !proxyStream ? proxyPort : undefined,
 							sock: proxyStream,
 							username: proxyUser,
@@ -153,7 +161,7 @@ export class RemoteSSHResolver implements vscode.RemoteAuthorityResolver, vscode
 					}
 				} else if (sshHostConfig['ProxyCommand']) {
 					let proxyArgs = (sshHostConfig['ProxyCommand'] as unknown as string[])
-						.map((arg) => arg.replace('%h', sshHostName).replace('%p', sshPort.toString()).replace('%r', sshUser));
+						.map((arg) => arg.replace('%h', sshHostName).replace('%n', sshDest.hostname).replace('%p', sshPort.toString()).replace('%r', sshUser));
 					let proxyCommand = proxyArgs.shift()!;
 
 					let options = {};

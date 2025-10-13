@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+// @ts-check
 
 /**
  * Hygiene works by creating cascading subsets of all our files and
@@ -24,8 +25,10 @@ module.exports.all = [
 	'test/**/*',
 	'!cli/**/*',
 	'!out*/**',
+	'!extensions/**/out*/**',
 	'!test/**/out/**',
 	'!**/node_modules/**',
+	'!**/*.js.map',
 
 	// --- Start Positron ---
 	// Excluded since it's generated code (an OpenAPI client)
@@ -34,10 +37,6 @@ module.exports.all = [
 	// Excluded since it comes from an external source with its own hygiene
 	// rules
 	'!extensions/positron-python/**/*',
-
-	// Excluded since it comes from an external source with its own hygiene
-	// rules
-	'!extensions/open-remote-ssh/**/*',
 
 	// Excluded since it isn't shipping code
 	'!test/smoke/test-repo/**/*',
