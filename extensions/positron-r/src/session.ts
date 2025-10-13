@@ -641,21 +641,34 @@ export class RSession implements positron.LanguageRuntimeSession, vscode.Disposa
 	private async createKernel(): Promise<JupyterLanguageRuntimeSession> {
 		this.adapterApi = await supervisorApi();
 
-		// Create the Jupyter session
-		const kernel = this.kernelSpec ?
-			// We have a kernel spec, so create a new session
-			await this.adapterApi.createSession(
-				this.runtimeMetadata,
-				this.metadata,
-				this.kernelSpec,
-				this.dynState,
-				this.extra) :
+		let kernel: JupyterLanguageRuntimeSession;
 
-			// We don't have a kernel spec, so restore (reconnect) the session
-			await this.adapterApi.restoreSession(
+		if (this.kernelSpec) {
+			// We have a kernel spec. First try to restore (reconnect) the session
+			// if it still exists. If that fails because the session is no longer
+			// running, then create a new session with the kernel spec.
+			try {
+				kernel = await this.adapterApi.restoreSession(
+					this.runtimeMetadata,
+					this.metadata,
+					this.dynState);
+			} catch (err) {
+				// If the session is no longer running, create a new one with the kernel spec
+				LOGGER.info(`Could not restore session, creating new session: ${err}`);
+				kernel = await this.adapterApi.createSession(
+					this.runtimeMetadata,
+					this.metadata,
+					this.kernelSpec,
+					this.dynState,
+					this.extra);
+			}
+		} else {
+			// We don't have a kernel spec, so just restore (reconnect) the session
+			kernel = await this.adapterApi.restoreSession(
 				this.runtimeMetadata,
 				this.metadata,
 				this.dynState);
+		}
 
 		kernel.onDidChangeRuntimeState((state) => {
 			this._stateEmitter.fire(state);
