@@ -143,13 +143,18 @@ export function createJupyterKernelSpec(
 		'kernel_protocol_version': '5.5' // eslint-disable-line
 	};
 
-	// Pass the `--no-restore-data` flag to R based on the restoreWorkspace setting.
-	// When restoreWorkspace is TRUE, we pass --no-restore-data to prevent restoration.
-	// This appears counter-intuitive, but matches the observed behavior.
-	const restoreWorkspace = config.get<boolean>('restoreWorkspace');
-	if (restoreWorkspace) {
+	// Unless the user has chosen to restore the workspace, pass the
+	// `--no-restore-data` flag to R.
+	const restoreWorkspaceSetting = config.get<boolean>('restoreWorkspace');
+	console.log(`[DEBUG] restoreWorkspace setting value: ${restoreWorkspaceSetting} (type: ${typeof restoreWorkspaceSetting})`);
+	console.log(`[DEBUG] Will ${!restoreWorkspaceSetting ? 'ADD' : 'NOT ADD'} --no-restore-data flag`);
+	
+	if (!restoreWorkspaceSetting) {
 		kernelSpec.argv.push('--no-restore-data');
+		console.log(`[DEBUG] Added --no-restore-data to argv`);
 	}
+	
+	console.log(`[DEBUG] Final argv:`, JSON.stringify(kernelSpec.argv));
 
 	// If the user has supplied extra arguments to R, pass them along.
 	const extraArgs = config.get<Array<string>>('extraArguments');
