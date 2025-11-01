@@ -148,8 +148,8 @@ export class QmdRmdParser {
 		for (let i = 0; i < data.cells.length; i++) {
 			const cell = data.cells[i];
 			
-			// Add blank line before cell (except first cell after YAML)
-			if (i > 0 || (i === 0 && !data.metadata?.frontMatter)) {
+			// Add blank line before each cell except when first cell comes right after YAML front matter
+			if (i > 0 || !data.metadata?.frontMatter) {
 				lines.push('');
 			}
 			
