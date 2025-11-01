@@ -1,0 +1,65 @@
+{
+  "name": "qmd-notebook",
+  "displayName": "Quarto and RMarkdown Notebook",
+  "description": "Notebook support for Quarto (.qmd) and RMarkdown (.rmd) files",
+  "publisher": "positron",
+  "version": "1.0.0",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.65.0"
+  },
+  "activationEvents": [
+    "onNotebook:quarto-notebook",
+    "onNotebook:rmarkdown-notebook"
+  ],
+  "extensionKind": [
+    "workspace",
+    "ui"
+  ],
+  "main": "./out/extension.js",
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "contributes": {
+    "notebooks": [
+      {
+        "type": "quarto-notebook",
+        "displayName": "Quarto Notebook",
+        "selector": [
+          {
+            "filenamePattern": "*.qmd"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "type": "rmarkdown-notebook",
+        "displayName": "RMarkdown Notebook",
+        "selector": [
+          {
+            "filenamePattern": "*.rmd"
+          },
+          {
+            "filenamePattern": "*.Rmd"
+          }
+        ],
+        "priority": "default"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "npx gulp compile-extension:qmd-notebook",
+    "watch": "npx gulp watch-extension:qmd-notebook"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.9.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/posit-dev/positron.git"
+  }
+}
