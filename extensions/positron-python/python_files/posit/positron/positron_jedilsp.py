@@ -62,6 +62,7 @@ from ._vendor.lsprotocol.types import (
     TEXT_DOCUMENT_DID_SAVE,
     TEXT_DOCUMENT_DOCUMENT_HIGHLIGHT,
     TEXT_DOCUMENT_DOCUMENT_SYMBOL,
+    TEXT_DOCUMENT_FOLDING_RANGE,
     TEXT_DOCUMENT_HOVER,
     TEXT_DOCUMENT_REFERENCES,
     TEXT_DOCUMENT_RENAME,
@@ -90,6 +91,9 @@ from ._vendor.lsprotocol.types import (
     DocumentHighlight,
     DocumentSymbol,
     DocumentSymbolParams,
+    FoldingRange,
+    FoldingRangeKind,
+    FoldingRangeParams,
     Hover,
     InitializeParams,
     InitializeResult,
@@ -984,6 +988,167 @@ def positron_did_close_notebook_diagnostics(
     server: JediLanguageServer, params: DidCloseNotebookDocumentParams
 ) -> None:
     return did_close_notebook_diagnostics(server, params)
+
+
+@POSITRON.feature(TEXT_DOCUMENT_FOLDING_RANGE)
+def positron_folding_range(
+    server: PositronJediLanguageServer, params: FoldingRangeParams
+) -> Optional[List[FoldingRange]]:
+    """Provide folding ranges for Python documents, including comment sections."""
+    try:
+        document = server.workspace.get_text_document(params.text_document.uri)
+        return _compute_folding_ranges(document)
+    except Exception:
+        logger.exception("Failed to compute folding ranges", exc_info=True)
+        return None
+
+
+def _compute_folding_ranges(document: TextDocument) -> List[FoldingRange]:
+    """
+    Compute folding ranges for a Python document.
+    
+    Supports:
+    - Comment sections (similar to R): # Section ----
+    - Region markers: #region / #endregion
+    - Cells: # %% or #+ 
+    """
+    folding_ranges: List[FoldingRange] = []
+    lines = document.lines
+    
+    # Track comment section stack: list of (level, start_line) tuples
+    comment_stack: List[tuple[int, int]] = []
+    
+    # Track region marker start line
+    region_marker: Optional[int] = None
+    
+    # Track cell marker start line
+    cell_marker: Optional[int] = None
+    
+    for line_idx, line in enumerate(lines):
+        line_text = line.rstrip('\n\r')
+        stripped = line_text.lstrip()
+        
+        # Skip non-comment lines
+        if not stripped.startswith('#'):
+            continue
+        
+        # Check for comment section
+        section_match = _parse_comment_as_section(line_text)
+        if section_match is not None:
+            level, _ = section_match
+            
+            # Close any cell that was open before this section
+            if cell_marker is not None:
+                folding_ranges.append(_create_folding_range(cell_marker, line_idx - 1))
+                cell_marker = None
+            
+            # Handle nested comment sections
+            while comment_stack:
+                last_level, last_start = comment_stack[-1]
+                if last_level < level:
+                    # This is a deeper level, add to stack
+                    comment_stack.append((level, line_idx))
+                    break
+                elif last_level == level:
+                    # Same level, close previous and start new
+                    folding_ranges.append(_create_folding_range(last_start, line_idx - 1))
+                    comment_stack[-1] = (level, line_idx)
+                    break
+                else:
+                    # last_level > level, close the deeper section
+                    folding_ranges.append(_create_folding_range(last_start, line_idx - 1))
+                    comment_stack.pop()
+            
+            # If stack is empty, this is the first section
+            if not comment_stack:
+                comment_stack.append((level, line_idx))
+            
+            continue
+        
+        # Check for region markers
+        region_type = _parse_region_type(line_text)
+        if region_type == "start":
+            region_marker = line_idx
+            continue
+        elif region_type == "end":
+            if region_marker is not None:
+                folding_ranges.append(_create_folding_range(region_marker, line_idx))
+                region_marker = None
+            continue
+        
+        # Check for cell markers (# %% or #+)
+        if _is_cell_marker(line_text):
+            # Close any previous cell
+            if cell_marker is not None:
+                folding_ranges.append(_create_folding_range(cell_marker, line_idx - 1))
+            # Start new cell
+            cell_marker = line_idx
+            continue
+    
+    # Close any remaining open sections
+    for _, start_line in comment_stack:
+        folding_ranges.append(_create_folding_range(start_line, len(lines) - 1))
+    
+    # Close any remaining open region
+    if region_marker is not None:
+        folding_ranges.append(_create_folding_range(region_marker, len(lines) - 1))
+    
+    # Close any remaining open cell
+    if cell_marker is not None:
+        folding_ranges.append(_create_folding_range(cell_marker, len(lines) - 1))
+    
+    return folding_ranges
+
+
+def _parse_comment_as_section(line: str) -> Optional[tuple[int, str]]:
+    """
+    Parse a comment line as a section header.
+    
+    Returns (level, title) if the line is a section header, None otherwise.
+    Section format: # Title ---- or ## Title ---- (with 4+ trailing dashes, equals, or hashes)
+    """
+    # Pattern matches: optional whitespace, 1+ #, whitespace, title, whitespace, 4+ trailing chars
+    pattern = r'^\s*(#+)\s+(.*?)\s+[#=-]{4,}\s*$'
+    match = re.match(pattern, line)
+    if match:
+        hashes = match.group(1)
+        title = match.group(2)
+        level = len(hashes)
+        return (level, title)
+    return None
+
+
+def _parse_region_type(line: str) -> Optional[str]:
+    """
+    Parse a comment line as a region marker.
+    
+    Returns 'start' for #region, 'end' for #endregion, None otherwise.
+    """
+    # Source: https://github.com/microsoft/vscode/blob/d6d5034f/extensions/python/language-configuration.json#L45-L48
+    if re.match(r'^\s*#\s*region\b', line):
+        return "start"
+    elif re.match(r'^\s*#\s*endregion\b', line):
+        return "end"
+    return None
+
+
+def _is_cell_marker(line: str) -> bool:
+    """
+    Check if a line is a cell marker.
+    
+    Cell markers are: # %% or #+
+    """
+    # Match # %% (Jupyter-style) or #+ (knitr-style)
+    return bool(re.match(r'^#\s*%%|^#\+\s', line))
+
+
+def _create_folding_range(start_line: int, end_line: int) -> FoldingRange:
+    """Create a folding range from start to end line (inclusive)."""
+    return FoldingRange(
+        start_line=start_line,
+        end_line=end_line,
+        kind=FoldingRangeKind.Region,
+    )
 
 
 def _interpreter(
