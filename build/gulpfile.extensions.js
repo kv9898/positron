@@ -48,6 +48,7 @@ const compilations = [
 	'extensions/positron-supervisor/tsconfig.json',
 	'extensions/positron-viewer/tsconfig.json',
 	'extensions/positron-zed/tsconfig.json',
+	'extensions/qmd-notebook/tsconfig.json',
 	// --- End Positron ---
 	'extensions/configuration-editing/tsconfig.json',
 	'extensions/css-language-features/client/tsconfig.json',
