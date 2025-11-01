@@ -138,10 +138,21 @@ export class QmdRmdParser {
 		// Add YAML front matter if present
 		if (data.metadata?.frontMatter) {
 			lines.push(data.metadata.frontMatter);
+			// Add blank line after YAML front matter
+			if (data.cells.length > 0) {
+				lines.push('');
+			}
 		}
 		
 		// Serialize each cell
-		for (const cell of data.cells) {
+		for (let i = 0; i < data.cells.length; i++) {
+			const cell = data.cells[i];
+			
+			// Add blank line before cell (except first cell after YAML)
+			if (i > 0 || (i === 0 && !data.metadata?.frontMatter)) {
+				lines.push('');
+			}
+			
 			if (cell.kind === vscode.NotebookCellKind.Markup) {
 				// Add markdown cell
 				lines.push(cell.value);
