@@ -11,7 +11,7 @@ import re
 import threading
 import warnings
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Union, cast
 
 from comm.base_comm import BaseComm
 
@@ -1016,7 +1016,7 @@ def _compute_folding_ranges(document: TextDocument) -> List[FoldingRange]:
     lines = document.lines
     
     # Track comment section stack: list of (level, start_line) tuples
-    comment_stack: List[tuple[int, int]] = []
+    comment_stack: List[Tuple[int, int]] = []
     
     # Track region marker start line
     region_marker: Optional[int] = None
@@ -1100,7 +1100,7 @@ def _compute_folding_ranges(document: TextDocument) -> List[FoldingRange]:
     return folding_ranges
 
 
-def _parse_comment_as_section(line: str) -> Optional[tuple[int, str]]:
+def _parse_comment_as_section(line: str) -> Optional[Tuple[int, str]]:
     """
     Parse a comment line as a section header.
     
