@@ -63,7 +63,7 @@ test.describe('Data Explorer: Performance', { tag: [] }, () => {
 
 	testCases.forEach(testCase => {
 		test(`${testCase.varType} - Record data load, basic filtering and sorting [${testCase.preFilterSummary.source} rows]`,
-			{ tag: [tags.CRITICAL, tags.WEB, tags.WIN, tags.DATA_EXPLORER, tags.PERFORMANCE] },
+			{ tag: [tags.WEB, tags.WIN, tags.DATA_EXPLORER, tags.PERFORMANCE] },
 			async function ({ app, openFile, runCommand, metric, sessions }) {
 				const { dataExplorer, variables, editors } = app.workbench;
 				await sessions.start(testCase.env === 'Python' ? 'python' : 'r');
@@ -80,7 +80,7 @@ test.describe('Data Explorer: Performance', { tag: [] }, () => {
 
 				// Verify the status bar text reflects the full data set
 				await dataExplorer.expectStatusBarToHaveText(testCase.preFilterSummary);
-				await dataExplorer.maximize(true);
+				await dataExplorer.maximize(false);
 
 				// Perform and record basic sorting
 				await metric.dataExplorer.sort(async () => {

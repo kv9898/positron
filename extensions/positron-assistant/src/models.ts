@@ -15,17 +15,23 @@ import { createOpenAI, OpenAIProvider } from '@ai-sdk/openai';
 import { createMistral, MistralProvider } from '@ai-sdk/mistral';
 import { createOllama, OllamaProvider } from 'ollama-ai-provider';
 import { createOpenRouter, OpenRouterProvider } from '@openrouter/ai-sdk-provider';
-import { markBedrockCacheBreakpoint, processMessages, toAIMessage } from './utils';
+import { processMessages, toAIMessage } from './utils';
 import { AmazonBedrockProvider, createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 import { fromNodeProviderChain } from '@aws-sdk/credential-providers';
-import { AnthropicLanguageModel } from './anthropic';
+import { AnthropicLanguageModel, DEFAULT_ANTHROPIC_MODEL_MATCH, DEFAULT_ANTHROPIC_MODEL_NAME } from './anthropic';
 import { DEFAULT_MAX_TOKEN_INPUT, DEFAULT_MAX_TOKEN_OUTPUT } from './constants.js';
 import { log, recordRequestTokenUsage, recordTokenUsage } from './extension.js';
 import { TokenUsage } from './tokens.js';
+import { BedrockClient, InferenceProfileSummary, ListFoundationModelsCommand, ListInferenceProfilesCommand } from '@aws-sdk/client-bedrock';
 
 /**
  * Models used by chat participants and for vscode.lm.* API functionality.
  */
+
+export interface BedrockProviderVariables {
+	AWS_REGION?: string;
+	AWS_PROFILE?: string;
+}
 
 //#region Test Models
 class ErrorLanguageModel implements positron.ai.LanguageModelChatProvider {
@@ -154,7 +160,11 @@ class EchoLanguageModel implements positron.ai.LanguageModelChatProvider {
 		token: vscode.CancellationToken
 	): Promise<any> {
 		const _messages = toAIMessage(messages);
-		const message = _messages.length > 1 ? _messages[_messages.length - 2] : _messages[0]; // Get the last user message, the last message is the context
+		const message = this.getUserPrompt(_messages);
+
+		if (!message) {
+			throw new Error('No user prompt provided to echo language model.');
+		}
 
 		if (typeof message.content === 'string') {
 			message.content = [{ type: 'text', text: message.content }];
@@ -224,6 +234,22 @@ class EchoLanguageModel implements positron.ai.LanguageModelChatProvider {
 
 	async resolveModels(token: vscode.CancellationToken): Promise<vscode.LanguageModelChatInformation[] | undefined> {
 		return Promise.resolve(this.availableModels);
+	}
+
+	private getUserPrompt(messages: ai.CoreMessage[]): ai.CoreMessage | undefined {
+		if (messages.length === 0) {
+			return undefined;
+		}
+		if (messages.length === 1) {
+			return messages[0];
+		}
+		// If there are multiple messages, the last message is the user message.
+		// See defaultRequestHandler in extensions/positron-assistant/src/participants.ts for the message ordering.
+		const userPrompt = messages[messages.length - 1];
+		if (userPrompt.role !== 'user') {
+			return undefined;
+		}
+		return userPrompt;
 	}
 }
 
@@ -345,7 +371,6 @@ abstract class AILanguageModel implements positron.ai.LanguageModelChatProvider 
 		}
 
 		// Return the available models for this provider
-		// The first model is the default model
 		const languageModels: vscode.LanguageModelChatInformation[] = models.map((m, index) => {
 			const modelId = 'identifier' in m ? m.identifier : m.id;
 			const aiModel = this.aiProvider(modelId);
@@ -357,11 +382,18 @@ abstract class AILanguageModel implements positron.ai.LanguageModelChatProvider 
 				maxInputTokens: this.getMaxTokens(aiModel.modelId, 'input'),
 				maxOutputTokens: this.getMaxTokens(aiModel.modelId, 'output'),
 				capabilities: this.capabilities,
-				// is default if it's the first model out of models
-				isDefault: index === 0,
+				isDefault: this.isDefaultUserModel(modelId, m.name),
 				isUserSelectable: true,
 			};
 		});
+
+		// If no models match the default ID, make the first model the default.
+		if (languageModels.length > 0 && !languageModels.some(m => m.isDefault)) {
+			languageModels[0] = {
+				...languageModels[0],
+				isDefault: true,
+			};
+		}
 
 		return languageModels;
 	}
@@ -387,7 +419,7 @@ abstract class AILanguageModel implements positron.ai.LanguageModelChatProvider 
 		// Only Anthropic currently supports experimental_content in tool
 		// results.
 		const toolResultExperimentalContent = this.provider === 'anthropic-api' ||
-			aiModel.modelId.startsWith('us.anthropic');
+			aiModel.modelId.includes('anthropic');
 
 		// Only select Bedrock models support cache breakpoints; specifically,
 		// the Claude 3.5 Sonnet models don't support them.
@@ -395,7 +427,7 @@ abstract class AILanguageModel implements positron.ai.LanguageModelChatProvider 
 		// Consider: it'd be more verbose but we should consider including this information
 		// in the hardcoded model metadata in the model config.
 		const bedrockCacheBreakpoint = this.provider === 'amazon-bedrock' &&
-			!aiModel.modelId.startsWith('us.anthropic.claude-3-5');
+			!aiModel.modelId.includes('anthropic.claude-3-5');
 
 		// Add system prompt from `modelOptions.system`, if provided.
 		// TODO: Once extensions such as databot no longer use `modelOptions.system`,
@@ -416,9 +448,19 @@ abstract class AILanguageModel implements positron.ai.LanguageModelChatProvider 
 
 		if (options.tools && options.tools.length > 0) {
 			tools = options.tools.reduce((acc: Record<string, ai.Tool>, tool: vscode.LanguageModelChatTool) => {
+				// Some providers like AWS Bedrock require a type for all tool input schemas; default to 'object' if not provided.
+				// See similar handling for Anthropic in toAnthropicTool in extensions/positron-assistant/src/anthropic.ts
+				const input_schema = tool.inputSchema as Record<string, any> ?? {
+					type: 'object',
+					properties: {},
+				};
+				if (!input_schema.type) {
+					log.warn(`Tool '${tool.name}' is missing input schema type; defaulting to 'object'`);
+					input_schema.type = 'object';
+				}
 				acc[tool.name] = ai.tool({
 					description: tool.description,
-					parameters: ai.jsonSchema(tool.inputSchema ?? { type: 'object', properties: {} }),
+					parameters: ai.jsonSchema(input_schema),
 				});
 				return acc;
 			}, {});
@@ -427,8 +469,8 @@ abstract class AILanguageModel implements positron.ai.LanguageModelChatProvider 
 		const modelTools = this._config.toolCalls ? tools : undefined;
 		const requestId = (options.modelOptions as any)?.requestId;
 
-		log.info(`[vercel] Start request ${requestId} to ${this._config.name} [${aiModel.modelId}]: ${aiMessages.length} messages`);
-		log.debug(`[${this._config.name}] SEND ${aiMessages.length} messages, ${modelTools ? Object.keys(modelTools).length : 0} tools`);
+		log.info(`[vercel] Start request ${requestId} to ${model.name} [${aiModel.modelId}]: ${aiMessages.length} messages`);
+		log.debug(`[${model.name}] SEND ${aiMessages.length} messages, ${modelTools ? Object.keys(modelTools).length : 0} tools`);
 		if (modelTools) {
 			log.trace(`tools: ${modelTools ? Object.keys(modelTools).join(', ') : '(none)'}`);
 		}
@@ -454,7 +496,7 @@ abstract class AILanguageModel implements positron.ai.LanguageModelChatProvider 
 		const flushAccumulatedTextDeltas = () => {
 			if (accumulatedTextDeltas.length > 0) {
 				const combinedText = accumulatedTextDeltas.join('');
-				log.trace(`[${this._config.name}] RECV text-delta (${accumulatedTextDeltas.length} parts): ${combinedText}`);
+				log.trace(`[${model.name}] RECV text-delta (${accumulatedTextDeltas.length} parts): ${combinedText}`);
 				accumulatedTextDeltas = [];
 			}
 		};
@@ -483,7 +525,7 @@ abstract class AILanguageModel implements positron.ai.LanguageModelChatProvider 
 
 			if (part.type === 'error') {
 				flushAccumulatedTextDeltas();
-				log.warn(`[${this._config.name}] RECV error: ${JSON.stringify(part.error)}`);
+				log.warn(`[${model.name}] RECV error: ${JSON.stringify(part.error)}`);
 
 				const providerErrorMessage = this.parseProviderError(part.error);
 				if (providerErrorMessage) {
@@ -504,7 +546,7 @@ abstract class AILanguageModel implements positron.ai.LanguageModelChatProvider 
 		result.warnings.then((warnings) => {
 			if (warnings) {
 				for (const warning of warnings) {
-					log.warn(`[${aiModel.modelId}] (${this.id}) warn: ${warning}`);
+					log.warn(`[${aiModel.modelId}] (${this.provider}) warn: ${warning}`);
 				}
 			}
 		});
@@ -534,7 +576,7 @@ abstract class AILanguageModel implements positron.ai.LanguageModelChatProvider 
 			progress.report(part);
 
 			// Log the Bedrock usage
-			log.debug(`[${this._config.name}]: Bedrock usage: ${JSON.stringify(usage, null, 2)}`);
+			log.debug(`[${model.name}]: Bedrock usage: ${JSON.stringify(usage, null, 2)}`);
 		}
 
 		if (requestId) {
@@ -594,13 +636,24 @@ abstract class AILanguageModel implements positron.ai.LanguageModelChatProvider 
 					maxInputTokens: 0,
 					maxOutputTokens: model.maxOutputTokens ?? DEFAULT_MAX_TOKEN_OUTPUT,
 					capabilities: this.capabilities,
-					isDefault: false,
+					isDefault: this.isDefaultUserModel(model.identifier, model.name),
 					isUserSelectable: true,
 				} satisfies vscode.LanguageModelChatInformation)));
 			} else {
 				resolve(undefined);
 			}
 		});
+	}
+
+	protected isDefaultUserModel(id: string, name?: string): boolean {
+		const config = vscode.workspace.getConfiguration('positron.assistant');
+		const defaultModels = config.get<Record<string, string>>('defaultModels') || {};
+		if (this.provider in defaultModels) {
+			if (id.includes(defaultModels[this.provider]) || name?.includes(defaultModels[this.provider])) {
+				return true;
+			}
+		}
+		return this._config.model === id;
 	}
 }
 
@@ -618,8 +671,8 @@ class AnthropicAILanguageModel extends AILanguageModel implements positron.ai.La
 		},
 		supportedOptions: ['apiKey', 'apiKeyEnvVar'],
 		defaults: {
-			name: 'Claude 3.5 Sonnet v2',
-			model: 'claude-3-5-sonnet-latest',
+			name: DEFAULT_ANTHROPIC_MODEL_NAME,
+			model: DEFAULT_ANTHROPIC_MODEL_MATCH + '-latest',
 			toolCalls: true,
 			apiKeyEnvVar: { key: 'ANTHROPIC_API_KEY', signedIn: false },
 		},
@@ -641,7 +694,7 @@ class OpenAILanguageModel extends AILanguageModel implements positron.ai.Languag
 	static source: positron.ai.LanguageModelSource = {
 		type: positron.PositronLanguageModelType.Chat,
 		provider: {
-			id: 'openai',
+			id: 'openai-api',
 			displayName: 'OpenAI'
 		},
 		supportedOptions: ['apiKey', 'baseUrl', 'toolCalls'],
@@ -944,30 +997,57 @@ class VertexLanguageModel extends AILanguageModel implements positron.ai.Languag
 
 export class AWSLanguageModel extends AILanguageModel implements positron.ai.LanguageModelChatProvider {
 	protected aiProvider: AmazonBedrockProvider;
+	static SUPPORTED_BEDROCK_PROVIDERS = ['Anthropic'];
+	static LEGACY_MODELS_REGEX = [
+		'.*anthropic\.claude-3-opus.*',
+		'.*anthropic\.claude-3-5-sonnet.*',
+	];
+	static DEFAULT_MAX_TOKENS_INPUT = DEFAULT_MAX_TOKEN_INPUT;
+	static DEFAULT_MAX_TOKENS_OUTPUT = 8192;
 
 	static source: positron.ai.LanguageModelSource = {
 		type: positron.PositronLanguageModelType.Chat,
 		provider: {
 			id: 'amazon-bedrock',
-			displayName: 'AWS Bedrock'
+			displayName: 'Amazon Bedrock'
 		},
 		supportedOptions: ['toolCalls'],
 		defaults: {
-			name: 'Claude 3.5 Sonnet v2 Bedrock',
-			model: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
+			name: 'Claude 4 Sonnet Bedrock',
+			model: 'us.anthropic.claude-sonnet-4-20250514-v1:0',
 			toolCalls: true,
 		},
 	};
+	bedrockClient: BedrockClient;
+	inferenceProfiles: InferenceProfileSummary[] = [];
 
 	constructor(_config: ModelConfig, _context?: vscode.ExtensionContext) {
+		// Update a stale model configuration to the latest defaults
+		const models = availableModels.get('amazon-bedrock')?.map(m => m.identifier) || [];
+		if (!(_config.model in models)) {
+			_config.name = AWSLanguageModel.source.defaults.name;
+			_config.model = AWSLanguageModel.source.defaults.model;
+		}
 		super(_config, _context);
+
+		const environmentSettings = vscode.workspace.getConfiguration('positron.assistant.providerVariables').get<BedrockProviderVariables>('bedrock', {});
+		const environment: BedrockProviderVariables = { ...process.env as BedrockProviderVariables, ...environmentSettings };
 
 		this.aiProvider = createAmazonBedrock({
 			// AWS_ACCESS_KEY_ID, AWS_SESSION_TOKEN, and AWS_SECRET_ACCESS_KEY must be set
 			// sets the AWS region where the models are available
-			region: process.env.AWS_REGION ?? 'us-east-1',
-			credentialProvider: fromNodeProviderChain(),
+			region: environment.AWS_REGION ?? 'us-east-1',
+			credentialProvider: fromNodeProviderChain({
+				profile: environment.AWS_PROFILE,
+			}),
 		});
+
+		// This is used to get available models
+		this.bedrockClient = new BedrockClient({
+			region: process.env.AWS_REGION ?? 'us-east-1',
+			credentials: fromNodeProviderChain(),
+		});
+		this.modelListing = [];
 	}
 
 	get providerName(): string {
@@ -1000,8 +1080,108 @@ export class AWSLanguageModel extends AILanguageModel implements positron.ai.Lan
 			return vscode.l10n.t(`Invalid AWS credentials. {0}`, message);
 		}
 
-		return vscode.l10n.t(`AWS Bedrock error: {0}`, message);
+		return vscode.l10n.t(`Amazon Bedrock error: {0}`, message);
 	}
+
+	override async provideLanguageModelChatInformation(options: { silent: boolean; }, token: vscode.CancellationToken): Promise<vscode.LanguageModelChatInformation[]> {
+		await this.resolveModels(token);
+		return this.modelListing || [];
+	}
+
+
+	override async resolveConnection(token: vscode.CancellationToken): Promise<Error | undefined> {
+		// The Vercel and Bedrock SDKs both use the node provider chain for credentials so getting a listing
+		// means the credentials are valid.
+		await this.resolveModels(token);
+
+		return undefined;
+	}
+
+	async resolveModels(token: vscode.CancellationToken): Promise<vscode.LanguageModelChatInformation[] | undefined> {
+		const modelListing: vscode.LanguageModelChatInformation[] = [];
+		const command = new ListFoundationModelsCommand();
+
+		const response = await this.bedrockClient.send(command);
+		const modelSummaries = response.modelSummaries;
+
+		log.trace('[BedrockLanguageModel] Fetching available Amazon Bedrock models for these providers: ' + AWSLanguageModel.SUPPORTED_BEDROCK_PROVIDERS.join(', '));
+
+		if (!modelSummaries || modelSummaries.length === 0) {
+			log.error('[BedrockLanguageModel] No Amazon Bedrock models available');
+			return modelListing;
+		}
+
+		const inferenceResponse = await this.bedrockClient.send(new ListInferenceProfilesCommand());
+		this.inferenceProfiles = inferenceResponse.inferenceProfileSummaries ?? [];
+
+		if (this.inferenceProfiles.length === 0) {
+			log.error('[BedrockLanguageModel] No Amazon Bedrock inference profiles available');
+			return modelListing;
+		}
+
+		const availableModels = modelSummaries.filter(m => m.modelLifecycle?.status === 'ACTIVE'
+			&& AWSLanguageModel.SUPPORTED_BEDROCK_PROVIDERS.includes(m.providerName as string)
+			// INFERENCE_PROFILE doesn't exist in the Bedrock types but it can actually return it so it casts the field to string[] to avoid typescript errors
+			&& (m.inferenceTypesSupported && (m.inferenceTypesSupported as string[]).includes('INFERENCE_PROFILE')));
+
+		availableModels.forEach(m => {
+			log.trace(`[BedrockLanguageModel] ${m.modelName} ${m.modelId}`);
+
+			if (!m.modelArn) {
+				return;
+			}
+
+			const modelId = this.findInferenceProfileForModel(m.modelArn, this.inferenceProfiles);
+			if (!modelId) {
+				log.error(`[BedrockLanguageModel] No inference profile found for model ${m.modelName}`);
+				return;
+			}
+
+			if (AWSLanguageModel.LEGACY_MODELS_REGEX.some(regex => {
+				const re = new RegExp(`${regex}`);
+				return re.test(m.modelId);
+			})) {
+				log.trace(`[BedrockLanguageModel] Skipping legacy model ${m.modelName}`);
+				return;
+			}
+
+			modelListing.push({
+				id: modelId,
+				name: m.modelName ?? modelId,
+				family: 'Amazon Bedrock',
+				version: '',
+				maxInputTokens: AWSLanguageModel.DEFAULT_MAX_TOKENS_INPUT,
+				maxOutputTokens: AWSLanguageModel.DEFAULT_MAX_TOKENS_OUTPUT,
+				capabilities: this.capabilities,
+				isDefault: this.isDefaultUserModel(modelId, m.modelName),
+				isUserSelectable: true,
+			});
+		});
+
+		this.modelListing = modelListing;
+
+		return modelListing;
+	}
+
+	/**
+	 * Find the inference profile ARN for a specific model.
+	 * This ensures that we can use the model and AWS will handle
+	 * routing for regions and resource allocation.
+	 *
+	 * @param modelArn the model ARN to get the inference ARN
+	 * @param inferenceProfiles profiles that the authenticated client can use
+	 * @returns the inference profile ARN or undefined if not found
+	 */
+	private findInferenceProfileForModel(modelArn: string, inferenceProfiles: InferenceProfileSummary[]): string | undefined {
+		for (const profile of inferenceProfiles) {
+			const models = profile.models?.map(m => m.modelArn);
+			if (models?.includes(modelArn)) {
+				return profile.inferenceProfileArn;
+			}
+		}
+		return undefined;
+	}
+
 }
 
 //#endregion
@@ -1140,17 +1320,6 @@ export const availableModels = new Map<string, ModelDefinition[]>(
 				maxInputTokens: 200_000, // reference: https://docs.anthropic.com/en/docs/about-claude/models/all-models#model-comparison-table
 				maxOutputTokens: 64_000, // reference: https://docs.anthropic.com/en/docs/about-claude/models/all-models#model-comparison-table
 			},
-			{
-				name: 'Claude 3.5 Sonnet v2',
-				identifier: 'claude-3-5-sonnet',
-				maxOutputTokens: 8_192, // reference: https://docs.anthropic.com/en/docs/about-claude/models/all-models#model-comparison-table
-			},
-			{
-				name: 'Claude 3.5 Haiku',
-				identifier: 'claude-3-5-haiku',
-				maxInputTokens: 200_000, // reference: https://docs.anthropic.com/en/docs/about-claude/models/all-models#model-comparison-table
-				maxOutputTokens: 8_192, // reference: https://docs.anthropic.com/en/docs/about-claude/models/all-models#model-comparison-table
-			},
 		]],
 		['google', [
 			{
@@ -1184,16 +1353,6 @@ export const availableModels = new Map<string, ModelDefinition[]>(
 				name: 'Claude 3.7 Sonnet v1 Bedrock',
 				identifier: 'us.anthropic.claude-3-7-sonnet-20250219-v1:0',
 				maxOutputTokens: 8_192, // use more conservative value for Bedrock (up to 64K tokens available)
-			},
-			{
-				name: 'Claude 3.5 Sonnet v2 Bedrock',
-				identifier: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
-				maxOutputTokens: 8_192, // reference: https://docs.anthropic.com/en/docs/about-claude/models/all-models#model-comparison-table
-			},
-			{
-				name: 'Claude 3.5 Sonnet v1 Bedrock',
-				identifier: 'us.anthropic.claude-3-5-sonnet-20240620-v1:0',
-				maxOutputTokens: 8_192, // reference: https://docs.anthropic.com/en/docs/about-claude/models/all-models#model-comparison-table
 			},
 		]]
 	]

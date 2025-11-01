@@ -10,14 +10,6 @@ test.use({
 	suiteId: __filename
 });
 
-// Local setup sample
-// docker run --name local-postgres -p 5432:5432 -e POSTGRES_USER=testuser -e POSTGRES_PASSWORD=testpassword -e POSTGRES_DB=testdb -d postgres:latest
-// Download https://github.com/neondatabase-labs/postgres-sample-dbs/blob/main/periodic_table.sql
-// psql -h localhost -U testuser -d testdb -f /Users/christophermead/Desktop/periodic_table.sql
-// psql -h localhost -U testuser -d testdb
-// SELECT * FROM periodic_table;
-// exit
-
 const viewLine = '.lines-content .view-line';
 const dbName = process.env.E2E_POSTGRES_DB || 'testdb';
 const user = process.env.E2E_POSTGRES_USER || 'testuser';
@@ -48,8 +40,9 @@ test.describe('Postgres DB Connection', {
 		await app.workbench.connections.connect();
 
 		await test.step('Open periodic table connection', async () => {
-			const connectionName = app.code.driver.page.locator('.connections-details', { hasText: 'public' });
-			await connectionName.locator('..').locator('.expand-collapse-area .codicon-chevron-right').click();
+
+			await app.workbench.connections.expandConnectionDetails('public');
+
 			await app.code.driver.page.locator('.codicon-positron-table-connection').first().click();
 
 			// hack to allow for different beahavior based on how db was imported
@@ -118,11 +111,9 @@ test.describe('Postgres DB Connection', {
 
 			await app.code.driver.page.locator('.codicon-arrow-circle-right').click();
 
-			const connectionName = app.code.driver.page.locator('.connections-details', { hasText: 'PqConnection' });
-			await connectionName.locator('..').locator('.expand-collapse-area .codicon-chevron-right').click();
+			await app.workbench.connections.expandConnectionDetails('PqConnection');
 
-			const publicNode = app.code.driver.page.locator('.connections-details', { hasText: 'public' });
-			await publicNode.locator('..').locator('.expand-collapse-area .codicon-chevron-right').click();
+			await app.workbench.connections.expandConnectionDetails('public');
 
 			await app.code.driver.page.locator('.codicon-positron-table-connection').first().click();
 

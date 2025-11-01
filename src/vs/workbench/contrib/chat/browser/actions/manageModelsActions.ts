@@ -17,6 +17,11 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
+// --- Start Positron ---
+// eslint-disable-next-line no-duplicate-imports
+import { ContextKeyTrueExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+// --- End Positron ---
+
 interface IVendorQuickPickItem extends IQuickPickItem {
 	managementCommand?: string;
 	vendor: string;
@@ -36,6 +41,9 @@ export class ManageModelsAction extends Action2 {
 			title: localize2('manageLanguageModels', 'Manage Language Models...'),
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(
+				// --- Start Positron ---
+				ContextKeyTrueExpr.INSTANCE,
+				// --- End Positron ---
 				ChatContextKeys.Entitlement.planFree,
 				ChatContextKeys.Entitlement.planPro,
 				ChatContextKeys.Entitlement.planProPlus,
@@ -49,7 +57,16 @@ export class ManageModelsAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const commandService = accessor.get(ICommandService);
 
+		// --- Start Positron ---
+		/*
 		const vendors = languageModelsService.getVendors();
+		*/
+		// Further filter vendors to only the providers (vendors) that the user has authenticated with
+		const providers = languageModelsService.getLanguageModelProviders();
+		const allVendors = languageModelsService.getVendors();
+		const vendors = allVendors
+			.filter(vendor => providers.some(provider => provider.id === vendor.vendor));
+		// --- End Positron ---
 		const store = new DisposableStore();
 
 		const quickPickItems: IVendorQuickPickItem[] = vendors.map(vendor => ({

@@ -11,7 +11,7 @@ import { Toasts } from './dialog-toasts';
 
 const CHAT_BUTTON = '.action-label.codicon-positron-assistant[aria-label^="Chat"]';
 const CONFIGURE_MODELS_LINK = 'a[data-href="command:positron-assistant.configureModels"]';
-const ADD_MODEL_BUTTON = '[id="workbench.panel.chat"] button[aria-label="Add Model Provider..."]';
+const ADD_MODEL_BUTTON = '[id="workbench.panel.chat"] button[aria-label="Configure Model Providers..."]';
 const APIKEY_INPUT = '#api-key-input input.text-input[type="password"]';
 const CLOSE_BUTTON = 'button.positron-button.action-bar-button.default:has-text("Close")';
 const SIGN_IN_BUTTON = 'button.positron-button.language-model.button.sign-in:has-text("Sign in")';
@@ -38,6 +38,7 @@ const MODE_DROPDOWN = 'a.action-label[aria-label^="Set Mode"]';
 const MODE_DROPDOWN_ITEM = '.monaco-list-row[role="menuitemcheckbox"]';
 const MODEL_PICKER_DROPDOWN = '.action-item.chat-modelPicker-item .monaco-dropdown .dropdown-label a.action-label[aria-label*="Pick Model"]';
 const MODEL_DROPDOWN_ITEM = '.monaco-list-row[role="menuitemcheckbox"]';
+const MANAGE_MODELS_ITEM = '.action-widget a.action-label[aria-label="Manage language models"]';
 /*
  *  Reuseable Positron Assistant functionality for tests to leverage.
  */
@@ -80,7 +81,7 @@ export class Assistant {
 
 	async verifyAddModelButtonVisible() {
 		await expect(this.code.driver.page.locator(ADD_MODEL_BUTTON)).toBeVisible();
-		await expect(this.code.driver.page.locator(ADD_MODEL_BUTTON)).toHaveText('Add Model Provider...');
+		await expect(this.code.driver.page.locator(ADD_MODEL_BUTTON)).toHaveText('Configure Model Providers...');
 	}
 
 	async verifyInlineChatInputsVisible() {
@@ -96,6 +97,11 @@ export class Assistant {
 		await expect(this.code.driver.page.locator(INSERT_NEW_FILE_BUTTON)).toHaveCount(1);
 	}
 
+	async verifyManageModelsOptionVisible() {
+		await this.code.driver.page.locator(MODEL_PICKER_DROPDOWN).click();
+		await expect(this.code.driver.page.locator(MANAGE_MODELS_ITEM)).toBeVisible();
+	}
+
 	async selectModelProvider(provider: string) {
 		switch (provider.toLowerCase()) {
 			case 'anthropic-api':
@@ -104,6 +110,7 @@ export class Assistant {
 			case 'aws':
 			case 'bedrock':
 			case 'aws bedrock':
+			case 'amazon bedrock':
 				await this.code.driver.page.locator(AWS_BEDROCK_BUTTON).click();
 				break;
 			case 'echo':
