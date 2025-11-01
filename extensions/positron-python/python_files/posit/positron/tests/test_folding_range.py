@@ -296,3 +296,50 @@ c = 3
     # Should have 2 cells (not 3, since "# +" is not a marker)
     cell_ranges = [r for r in ranges if r.start_line in [1, 7]]
     assert len(cell_ranges) == 2
+
+
+def test_folding_indented_sections():
+    """Test that sections inside indented blocks are handled independently."""
+    code = """
+import os
+
+# sth ----
+x = 1
+
+def add(x:int, y:int):
+    # well ----
+    return x + y
+
+## is it working? ----
+a = add(1.5, 2.5)
+
+# sth else ####
+"""
+    document = TextDocument(uri="file:///test.py", source=code)
+    ranges = _compute_folding_ranges(document)
+    
+    # Find the section ranges
+    outer_section_1 = [r for r in ranges if r.start_line == 3]  # "# sth ----"
+    inner_section = [r for r in ranges if r.start_line == 7]    # "    # well ----"
+    nested_section = [r for r in ranges if r.start_line == 10]  # "## is it working? ----"
+    outer_section_2 = [r for r in ranges if r.start_line == 13] # "# sth else ####"
+    
+    # Verify outer section exists
+    assert len(outer_section_1) == 1, "Should have outer section at line 3"
+    
+    # Verify inner section exists and stays within its indented block
+    assert len(inner_section) == 1, "Should have inner section at line 7"
+    assert inner_section[0].end_line < 10, \
+        f"Inner section should end before line 10, but ends at {inner_section[0].end_line}"
+    
+    # Verify nested section exists
+    assert len(nested_section) == 1, "Should have nested section at line 10"
+    
+    # Verify another outer section exists
+    assert len(outer_section_2) == 1, "Should have outer section at line 13"
+    
+    # The inner section should not affect the outer section's range
+    # The outer section should span from line 3 to before line 10 or 13
+    assert outer_section_1[0].end_line >= 9, \
+        f"Outer section should extend beyond function, ends at {outer_section_1[0].end_line}"
+

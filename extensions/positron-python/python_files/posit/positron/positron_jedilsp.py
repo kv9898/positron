@@ -1011,12 +1011,16 @@ def _compute_folding_ranges(document: TextDocument) -> List[FoldingRange]:
     - Comment sections (similar to R): # Section ----
     - Region markers: #region / #endregion
     - Cells: # %% or #+ 
+    
+    Comment sections are scoped by indentation - sections inside indented blocks
+    (like functions or classes) are treated independently from outer sections.
     """
     folding_ranges: List[FoldingRange] = []
     lines = document.lines
     
-    # Track comment section stack: list of (level, start_line) tuples
-    comment_stack: List[Tuple[int, int]] = []
+    # Track comment section stack: list of (level, indent, start_line) tuples
+    # The indent ensures sections inside functions are tracked separately
+    comment_stack: List[Tuple[int, int, int]] = []
     
     # Track region marker start line
     region_marker: Optional[int] = None
@@ -1032,6 +1036,9 @@ def _compute_folding_ranges(document: TextDocument) -> List[FoldingRange]:
         if not stripped.startswith('#'):
             continue
         
+        # Calculate indentation level
+        indent = len(line_text) - len(line_text.lstrip())
+        
         # Check for comment section
         section_match = _parse_comment_as_section(line_text)
         if section_match is not None:
@@ -1042,28 +1049,43 @@ def _compute_folding_ranges(document: TextDocument) -> List[FoldingRange]:
                 folding_ranges.append(_create_folding_range(cell_marker, line_idx - 1))
                 cell_marker = None
             
-            # Handle nested comment sections
+            # Handle nested comment sections with indentation awareness
+            # Close sections that are at deeper indentation or same indentation with >= level
             while comment_stack:
-                last_level, last_start = comment_stack[-1]
-                if last_level < level:
-                    # This is a deeper level, add to stack
-                    comment_stack.append((level, line_idx))
-                    break
-                elif last_level == level:
-                    # Same level, close previous and start new
-                    if line_idx > 0:
-                        folding_ranges.append(_create_folding_range(last_start, line_idx - 1))
-                    comment_stack[-1] = (level, line_idx)
-                    break
+                last_level, last_indent, last_start = comment_stack[-1]
+                
+                # If we've moved to a less indented or equally indented level
+                if indent <= last_indent:
+                    # At same indentation, compare hash levels
+                    if indent == last_indent:
+                        if last_level < level:
+                            # This is a deeper hash level at same indent, add to stack
+                            comment_stack.append((level, indent, line_idx))
+                            break
+                        else:
+                            # Same or shallower hash level at same indent, close previous
+                            if line_idx > 0:
+                                folding_ranges.append(_create_folding_range(last_start, line_idx - 1))
+                            if last_level == level:
+                                # Replace with new section at same level
+                                comment_stack[-1] = (level, indent, line_idx)
+                                break
+                            else:
+                                # Shallower level, pop and continue
+                                comment_stack.pop()
+                    else:
+                        # Less indented than previous section, close the previous one
+                        if line_idx > 0:
+                            folding_ranges.append(_create_folding_range(last_start, line_idx - 1))
+                        comment_stack.pop()
                 else:
-                    # last_level > level, close the deeper section
-                    if line_idx > 0:
-                        folding_ranges.append(_create_folding_range(last_start, line_idx - 1))
-                    comment_stack.pop()
+                    # More indented - this is inside a block, start new independent section
+                    comment_stack.append((level, indent, line_idx))
+                    break
             
             # If stack is empty, this is the first section
             if not comment_stack:
-                comment_stack.append((level, line_idx))
+                comment_stack.append((level, indent, line_idx))
             
             continue
         
@@ -1088,7 +1110,7 @@ def _compute_folding_ranges(document: TextDocument) -> List[FoldingRange]:
             continue
     
     # Close any remaining open sections
-    for _, start_line in comment_stack:
+    for _, _, start_line in comment_stack:
         folding_ranges.append(_create_folding_range(start_line, len(lines) - 1))
     
     # Close any remaining open region
