@@ -1038,7 +1038,7 @@ def _compute_folding_ranges(document: TextDocument) -> List[FoldingRange]:
             level, _ = section_match
             
             # Close any cell that was open before this section
-            if cell_marker is not None:
+            if cell_marker is not None and line_idx > 0:
                 folding_ranges.append(_create_folding_range(cell_marker, line_idx - 1))
                 cell_marker = None
             
@@ -1051,12 +1051,14 @@ def _compute_folding_ranges(document: TextDocument) -> List[FoldingRange]:
                     break
                 elif last_level == level:
                     # Same level, close previous and start new
-                    folding_ranges.append(_create_folding_range(last_start, line_idx - 1))
+                    if line_idx > 0:
+                        folding_ranges.append(_create_folding_range(last_start, line_idx - 1))
                     comment_stack[-1] = (level, line_idx)
                     break
                 else:
                     # last_level > level, close the deeper section
-                    folding_ranges.append(_create_folding_range(last_start, line_idx - 1))
+                    if line_idx > 0:
+                        folding_ranges.append(_create_folding_range(last_start, line_idx - 1))
                     comment_stack.pop()
             
             # If stack is empty, this is the first section
@@ -1079,7 +1081,7 @@ def _compute_folding_ranges(document: TextDocument) -> List[FoldingRange]:
         # Check for cell markers (# %% or #+)
         if _is_cell_marker(line_text):
             # Close any previous cell
-            if cell_marker is not None:
+            if cell_marker is not None and line_idx > 0:
                 folding_ranges.append(_create_folding_range(cell_marker, line_idx - 1))
             # Start new cell
             cell_marker = line_idx
@@ -1136,10 +1138,11 @@ def _is_cell_marker(line: str) -> bool:
     """
     Check if a line is a cell marker.
     
-    Cell markers are: # %% or #+
+    Cell markers are: # %% or #+ followed by a space or content
     """
-    # Match # %% (Jupyter-style) or #+ (knitr-style)
-    return bool(re.match(r'^#\s*%%|^#\+\s', line))
+    # Match # %% (Jupyter-style) or #+ (knitr-style, followed by space)
+    # Pattern based on R implementation: ^#+( %%|\+) (.*)
+    return bool(re.match(r'^#\+\s|^#\s+%%', line))
 
 
 def _create_folding_range(start_line: int, end_line: int) -> FoldingRange:
