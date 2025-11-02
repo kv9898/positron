@@ -1,0 +1,49 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Posit Software, PBC. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.positron-inline-output-zone {
+	background-color: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-editorWidget-border);
+	border-radius: 3px;
+	margin: 4px 0;
+	padding: 8px;
+}
+
+.positron-inline-output-container {
+	overflow: auto;
+	max-height: 400px;
+}
+
+.positron-inline-output-container pre {
+	margin: 0;
+	padding: 8px;
+	background-color: var(--vscode-editor-background);
+	color: var(--vscode-editor-foreground);
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	line-height: 1.4;
+	white-space: pre-wrap;
+	word-wrap: break-word;
+}
+
+.positron-inline-output-container img.output-image {
+	max-width: 100%;
+	height: auto;
+	display: block;
+	margin: 8px 0;
+}
+
+.positron-inline-output-container pre.output-text {
+	border-left: 3px solid var(--vscode-textBlockQuote-border);
+}
+
+.positron-inline-output-container pre.output-html {
+	border-left: 3px solid var(--vscode-editorInfo-foreground);
+}
+
+.positron-inline-output-container pre.output-unknown {
+	border-left: 3px solid var(--vscode-editorWarning-foreground);
+	color: var(--vscode-editorWarning-foreground);
+}
