@@ -1,0 +1,50 @@
+---
+title: "Example Quarto Notebook"
+format: html
+---
+
+## Introduction
+
+This is an example Quarto notebook file that demonstrates how custom notebook formats can be opened in Positron notebooks.
+
+## Python Example
+
+Here's a simple Python code chunk:
+
+```{python}
+import pandas as pd
+import numpy as np
+
+# Create sample data
+data = pd.DataFrame({
+    'x': np.arange(10),
+    'y': np.random.randn(10)
+})
+
+print(data.head())
+```
+
+## R Example
+
+And here's an R code chunk:
+
+```{r}
+# Create a simple plot
+x <- 1:10
+y <- x^2
+
+plot(x, y, type="b", main="Simple Plot")
+```
+
+## Markdown Content
+
+You can mix code and markdown freely in a Quarto notebook. This makes it great for:
+
+- Data analysis
+- Report generation
+- Interactive documentation
+- Teaching and tutorials
+
+## Conclusion
+
+With the extension API, Positron notebooks can now support any notebook format, including QMD, R Markdown, and custom formats!
