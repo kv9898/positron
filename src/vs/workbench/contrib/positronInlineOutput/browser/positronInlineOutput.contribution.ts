@@ -5,10 +5,10 @@
 
 import './positronInlineOutput.css';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+// import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { InlineOutputManager } from './inlineOutputManager.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+// import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -26,8 +26,8 @@ export class PositronInlineOutputContribution extends Disposable implements IWor
 	private _outputManager: InlineOutputManager;
 
 	constructor(
-		@IEditorService private readonly editorService: IEditorService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
+		// @IEditorService private readonly editorService: IEditorService,
+		// @ICodeEditorService private readonly codeEditorService: ICodeEditorService
 	) {
 		super();
 		this._outputManager = this._register(new InlineOutputManager());
@@ -113,7 +113,7 @@ class ShowTestOutputCommand extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const codeEditorService = accessor.get(ICodeEditorService);
-		const editorService = accessor.get(IEditorService);
+		// const editorService = accessor.get(IEditorService);
 		const activeEditor = codeEditorService.getFocusedCodeEditor();
 
 		if (!activeEditor) {
