@@ -36,8 +36,8 @@ export class OutputZoneWidget extends ZoneWidget {
 	/**
 	 * Show the zone widget after the specified line.
 	 */
-	public show(): void {
-		super.show(this.afterLineNumber, 5); // Show with 5 lines height initially
+	public override show(): void {
+		super.show({ lineNumber: this.afterLineNumber, column: 1 }, 5); // Show with 5 lines height initially
 	}
 
 	/**
@@ -75,7 +75,12 @@ export class OutputZoneWidget extends ZoneWidget {
 	 */
 	private _computeHeight(): number {
 		const contentHeight = this._outputContainer.scrollHeight;
-		const lineHeight = this.editor.getOption(67); // Line height option
+		// Editor option id 67 is used upstream for lineHeight in some branches.
+		// Coerce to a number safely and provide a sensible fallback to avoid NaN/div-by-zero.
+		// TODO: Replace the numeric literal with the proper EditorOption enum import (EditorOption.lineHeight).
+		const rawLineHeight = this.editor.getOption(67);
+		const lineHeightCandidate = typeof rawLineHeight === 'number' ? rawLineHeight : Number(rawLineHeight);
+		const lineHeight = (isFinite(lineHeightCandidate) && lineHeightCandidate > 0) ? lineHeightCandidate : 16; // default 16px if unknown
 		const numLines = Math.ceil(contentHeight / lineHeight);
 		return Math.min(numLines, 20); // Cap at 20 lines
 	}
