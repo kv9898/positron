@@ -46,7 +46,7 @@ class RunCellInlineCommand extends Action2 {
 		super({
 			id: 'positron.runCellInline',
 			title: { value: 'Run Cell and Show Output Inline', original: 'Run Cell and Show Output Inline' },
-			category: 'Positron',
+			category: 'View',
 			f1: true,
 			keybinding: {
 				when: ContextKeyExpr.and(
@@ -64,7 +64,7 @@ class RunCellInlineCommand extends Action2 {
 		// For now, just show a test message
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const activeEditor = codeEditorService.getFocusedCodeEditor();
-		
+
 		if (!activeEditor) {
 			return;
 		}
@@ -74,7 +74,7 @@ class RunCellInlineCommand extends Action2 {
 		// 2. Execute it via positron.runtime
 		// 3. Capture the output
 		// 4. Display it inline using the OutputManager
-		
+
 		console.log('Run Cell Inline command triggered');
 	}
 }
@@ -87,7 +87,7 @@ class ClearCellOutputCommand extends Action2 {
 		super({
 			id: 'positron.clearCellOutput',
 			title: { value: 'Clear Cell Output', original: 'Clear Cell Output' },
-			category: 'Positron',
+			category: 'View',
 			f1: true
 		});
 	}
@@ -106,7 +106,7 @@ class ShowTestOutputCommand extends Action2 {
 		super({
 			id: 'positron.showTestInlineOutput',
 			title: { value: 'Show Test Inline Output (Demo)', original: 'Show Test Inline Output (Demo)' },
-			category: 'Positron',
+			category: 'View',
 			f1: true
 		});
 	}
@@ -115,7 +115,7 @@ class ShowTestOutputCommand extends Action2 {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const editorService = accessor.get(IEditorService);
 		const activeEditor = codeEditorService.getFocusedCodeEditor();
-		
+
 		if (!activeEditor) {
 			return;
 		}
