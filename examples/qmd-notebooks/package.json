@@ -1,0 +1,73 @@
+{
+  "name": "qmd-notebooks",
+  "displayName": "Quarto QMD Notebooks",
+  "description": "Example extension showing how to add QMD notebook support to Positron",
+  "version": "1.0.0",
+  "publisher": "positron-examples",
+  "engines": {
+    "vscode": "^1.65.0"
+  },
+  "categories": [
+    "Notebooks"
+  ],
+  "keywords": [
+    "quarto",
+    "qmd",
+    "notebook",
+    "r",
+    "python",
+    "julia"
+  ],
+  "activationEvents": [
+    "onNotebook:quarto-notebook"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "notebooks": [
+      {
+        "type": "quarto-notebook",
+        "displayName": "Quarto Notebook",
+        "selector": [
+          {
+            "filenamePattern": "*.qmd"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
+    "commands": [
+      {
+        "command": "qmdNotebooks.newQmd",
+        "title": "New Quarto Notebook",
+        "category": "Quarto"
+      }
+    ],
+    "menus": {
+      "file/newFile": [
+        {
+          "command": "qmdNotebooks.newQmd",
+          "group": "notebook"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.65.0",
+    "@typescript-eslint/eslint-plugin": "^5.0.0",
+    "@typescript-eslint/parser": "^5.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/posit-dev/positron"
+  }
+}

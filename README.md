@@ -19,6 +19,13 @@ Positron is built on [Code OSS](https://github.com/microsoft/vscode). To learn a
 
 Install the latest release of Positron from our [website](https://positron.posit.co/download). Currently, we are producing Positron release builds from a continuous integration (CI) system for macOS, Windows, and Linux desktop.
 
+## Extend Positron
+
+Positron is built to be extensible. Want to add support for new notebook formats like QMD, or create custom extensions? Check out:
+
+- [**Notebook Extensions Guide**](NOTEBOOK_EXTENSIONS.md) - Learn how to add support for custom notebook file formats
+- [**Example QMD Extension**](examples/qmd-notebooks/) - A complete working example showing QMD notebook support
+
 ## Share your feedback about Positron
 
 We invite you to join us on [GitHub Discussions](https://github.com/posit-dev/positron/discussions) to ask questions and share feedback. [Read more](https://positron.posit.co/feedback) about giving feedback and reporting bugs.
