@@ -98,9 +98,66 @@ class ClearCellOutputCommand extends Action2 {
 	}
 }
 
+/**
+ * Demo command to test showing inline output (for development/testing).
+ */
+class ShowTestOutputCommand extends Action2 {
+	constructor() {
+		super({
+			id: 'positron.showTestInlineOutput',
+			title: { value: 'Show Test Inline Output (Demo)', original: 'Show Test Inline Output (Demo)' },
+			category: 'Positron',
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const editorService = accessor.get(IEditorService);
+		const activeEditor = codeEditorService.getFocusedCodeEditor();
+		
+		if (!activeEditor) {
+			return;
+		}
+
+		// For demo, we'll create output manager directly
+		// In production, this would be accessed through a service
+		const outputManager = new InlineOutputManager();
+
+		// Get current line
+		const position = activeEditor.getPosition();
+		if (!position) {
+			return;
+		}
+
+		const model = activeEditor.getModel();
+		if (!model) {
+			return;
+		}
+
+		// Show test output after current line
+		const testOutput = `[Demo Output]
+This is a test of inline output display.
+Current line: ${position.lineNumber}
+Time: ${new Date().toLocaleTimeString()}
+
+This demonstrates the ZoneWidget approach for displaying
+code execution results inline in the editor.`;
+
+		outputManager.showOutput(
+			activeEditor,
+			model.uri,
+			position.lineNumber,
+			testOutput,
+			'text/plain'
+		);
+	}
+}
+
 // Register actions
 registerAction2(RunCellInlineCommand);
 registerAction2(ClearCellOutputCommand);
+registerAction2(ShowTestOutputCommand);
 
 // Register the workbench contribution
 registerWorkbenchContribution2(
