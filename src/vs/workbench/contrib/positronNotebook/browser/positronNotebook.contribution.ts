@@ -60,12 +60,15 @@ const POSITRON_NOTEBOOK_CATEGORY = localize2('positronNotebook.category', 'Noteb
 class PositronNotebookContribution extends Disposable {
 	static readonly ID = 'workbench.contrib.positronNotebookContribution';
 
+	private readonly registeredNotebookTypes = new Set<string>();
+
 	constructor(
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
-		@INotebookService private readonly notebookService: INotebookService
+		@INotebookService private readonly notebookService: INotebookService,
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super();
 
@@ -75,7 +78,32 @@ class PositronNotebookContribution extends Disposable {
 		}
 	}
 
-	private registerEditor(): void {
+	private async registerEditor(): Promise<void> {
+		// Wait for extensions to be registered so we can see all contributed notebook types
+		await this.extensionService.whenInstalledExtensionsRegistered();
+
+		// Register for all currently contributed notebook types
+		const contributedTypes = this.notebookService.getContributedNotebookTypes();
+		for (const notebookType of contributedTypes) {
+			this.registerNotebookType(notebookType.id, notebookType.selectors);
+		}
+
+		// Listen for new notebook types being added and register them
+		this._register(this.notebookService.onAddViewType(viewType => {
+			const notebookType = this.notebookService.getContributedNotebookType(viewType);
+			if (notebookType && !this.registeredNotebookTypes.has(viewType)) {
+				this.registerNotebookType(viewType, notebookType.selectors);
+			}
+		}));
+	}
+
+	private registerNotebookType(viewType: string, selectors: readonly any[]): void {
+		if (this.registeredNotebookTypes.has(viewType)) {
+			return;
+		}
+
+		this.registeredNotebookTypes.add(viewType);
+
 		const notebookEditorInfo: RegisteredEditorInfo = {
 			id: POSITRON_NOTEBOOK_EDITOR_ID,
 			label: localize('positronNotebook', "Positron Notebook"),
@@ -83,115 +111,125 @@ class PositronNotebookContribution extends Disposable {
 			priority: RegisteredEditorPriority.option
 		};
 
-		// Register for .ipynb files
-		this._register(this.editorResolverService.registerEditor(
-			'*.ipynb',
-			notebookEditorInfo,
-			{
-				singlePerResource: true,
-				canSupportResource: (resource: URI) => {
-					// Support untitled notebooks and any file system that has a provider
-					// This handles: file://, vscode-remote://, vscode-userdata://, etc.
-					return resource.scheme === Schemas.untitled ||
-						resource.scheme === Schemas.vscodeNotebookCell ||
-						this.fileService.hasProvider(resource);
-				}
-			},
-			{
-				createUntitledEditorInput: async ({ resource, options }) => {
-					// We should handle undefined resource as in notebookEditorServiceImpl.ts,
-					// but resource seems to always be defined so we throw for now to simplify
-					if (!resource) {
-						throw new Error(`Cannot create untitled Positron notebook editor without a resource`);
+		// Register for each selector (file pattern)
+		for (const selector of selectors) {
+			const pattern = typeof selector === 'string' ? selector : (selector.include || selector.filenamePattern);
+			if (!pattern) {
+				continue;
+			}
+
+			// Register for the file pattern
+			this._register(this.editorResolverService.registerEditor(
+				pattern,
+				notebookEditorInfo,
+				{
+					singlePerResource: true,
+					canSupportResource: (resource: URI) => {
+						// Support untitled notebooks and any file system that has a provider
+						// This handles: file://, vscode-remote://, vscode-userdata://, etc.
+						return resource.scheme === Schemas.untitled ||
+							resource.scheme === Schemas.vscodeNotebookCell ||
+							this.fileService.hasProvider(resource);
 					}
-					const notebookEditorInput = PositronNotebookEditorInput.getOrCreate(
-						this.instantiationService,
-						resource,
-						undefined,
-					);
-					return { editor: notebookEditorInput, options };
 				},
-				createEditorInput: ({ resource, options }) => {
-					const notebookEditorInput = PositronNotebookEditorInput.getOrCreate(
-						this.instantiationService,
-						resource,
-						undefined,
-					);
-					return { editor: notebookEditorInput, options };
+				{
+					createUntitledEditorInput: async ({ resource, options }) => {
+						// We should handle undefined resource as in notebookEditorServiceImpl.ts,
+						// but resource seems to always be defined so we throw for now to simplify
+						if (!resource) {
+							throw new Error(`Cannot create untitled Positron notebook editor without a resource`);
+						}
+						const notebookEditorInput = PositronNotebookEditorInput.getOrCreate(
+							this.instantiationService,
+							resource,
+							undefined,
+						);
+						return { editor: notebookEditorInput, options };
+					},
+					createEditorInput: ({ resource, options }) => {
+						const notebookEditorInput = PositronNotebookEditorInput.getOrCreate(
+							this.instantiationService,
+							resource,
+							undefined,
+						);
+						return { editor: notebookEditorInput, options };
+					},
+					// Positron notebook editor doesn't support diff views, so delegate to VSCode's notebook diff editor
+					createDiffEditorInput: ({ original, modified, label, description }, group) => {
+						if (!modified.resource || !original.resource) {
+							throw new Error('Cannot create notebook diff editor without resources');
+						}
+
+						// Determine the notebook view type for the resource
+						// First try to get it from an existing model
+						let viewType = this.notebookService.getNotebookTextModel(modified.resource)?.viewType;
+
+						// If no model exists, find matching contributed notebook types
+						if (!viewType) {
+							const providers = this.notebookService.getContributedNotebookTypes(modified.resource);
+							// Use exclusive or default provider, or fall back to first available
+							viewType = providers.find(p => p.priority === 'exclusive')?.id
+								|| providers.find(p => p.priority === 'default')?.id
+								|| providers[0]?.id;
+						}
+
+						if (!viewType) {
+							throw new Error(`Cannot determine notebook view type for resource: ${modified.resource}`);
+						}
+
+						const diffInput = NotebookDiffEditorInput.create(
+							this.instantiationService,
+							modified.resource,
+							label,
+							description,
+							original.resource,
+							viewType
+						);
+						return { editor: diffInput };
+					}
 				},
-				// Positron notebook editor doesn't support diff views, so delegate to VSCode's notebook diff editor
-				createDiffEditorInput: ({ original, modified, label, description }, group) => {
-					if (!modified.resource || !original.resource) {
-						throw new Error('Cannot create notebook diff editor without resources');
+			));
+
+			// Register for cells with this pattern
+			// Convert pattern to cell URI pattern (e.g., "*.ipynb" -> "vscode-notebook-cell:/**/*.ipynb")
+			const cellPattern = `${Schemas.vscodeNotebookCell}:/${pattern}`;
+			this._register(this.editorResolverService.registerEditor(
+				cellPattern,
+				// The cell handler is specifically for opening and focusing a cell by URI
+				// e.g. vscode.window.showTextDocument(cell.document).
+				// The editor resolver service expects a single handler with 'exclusive' priority.
+				// This one is only registered if Positron notebooks are enabled.
+				// This does not seem to be an issue for file schemes (registered above).
+				{ ...notebookEditorInfo, priority: RegisteredEditorPriority.exclusive },
+				{
+					singlePerResource: true,
+					canSupportResource: (resource: URI) => {
+						return resource.scheme === Schemas.vscodeNotebookCell;
 					}
-
-					// Determine the notebook view type for the resource
-					// First try to get it from an existing model
-					let viewType = this.notebookService.getNotebookTextModel(modified.resource)?.viewType;
-
-					// If no model exists, find matching contributed notebook types
-					if (!viewType) {
-						const providers = this.notebookService.getContributedNotebookTypes(modified.resource);
-						// Use exclusive or default provider, or fall back to first available
-						viewType = providers.find(p => p.priority === 'exclusive')?.id
-							|| providers.find(p => p.priority === 'default')?.id
-							|| providers[0]?.id;
+				},
+				{
+					createEditorInput: (editorInput) => {
+						const parsed = CellUri.parse(editorInput.resource);
+						if (!parsed) {
+							throw new Error(`Invalid cell URI: ${editorInput.resource.toString()}`);
+						}
+						const notebookEditorInput = PositronNotebookEditorInput.getOrCreate(
+							this.instantiationService,
+							parsed.notebook,
+							undefined,
+						);
+						// Create notebook editor options from base text editor options
+						const notebookEditorOptions: INotebookEditorOptions = {
+							...editorInput.options,
+							cellOptions: editorInput,
+							// Override text editor view state - it's not valid for notebook editors
+							viewState: undefined,
+						};
+						return { editor: notebookEditorInput, options: notebookEditorOptions };
 					}
-
-					if (!viewType) {
-						throw new Error(`Cannot determine notebook view type for resource: ${modified.resource}`);
-					}
-
-					const diffInput = NotebookDiffEditorInput.create(
-						this.instantiationService,
-						modified.resource,
-						label,
-						description,
-						original.resource,
-						viewType
-					);
-					return { editor: diffInput };
-				}
-			},
-		));
-
-		// Register for cells in .ipynb files
-		this._register(this.editorResolverService.registerEditor(
-			`${Schemas.vscodeNotebookCell}:/**/*.ipynb`,
-			// The cell handler is specifically for opening and focusing a cell by URI
-			// e.g. vscode.window.showTextDocument(cell.document).
-			// The editor resolver service expects a single handler with 'exclusive' priority.
-			// This one is only registered if Positron notebooks are enabled.
-			// This does not seem to be an issue for file schemes (registered above).
-			{ ...notebookEditorInfo, priority: RegisteredEditorPriority.exclusive },
-			{
-				singlePerResource: true,
-				canSupportResource: (resource: URI) => {
-					return resource.scheme === Schemas.vscodeNotebookCell;
-				}
-			},
-			{
-				createEditorInput: (editorInput) => {
-					const parsed = CellUri.parse(editorInput.resource);
-					if (!parsed) {
-						throw new Error(`Invalid cell URI: ${editorInput.resource.toString()}`);
-					}
-					const notebookEditorInput = PositronNotebookEditorInput.getOrCreate(
-						this.instantiationService,
-						parsed.notebook,
-						undefined,
-					);
-					// Create notebook editor options from base text editor options
-					const notebookEditorOptions: INotebookEditorOptions = {
-						...editorInput.options,
-						cellOptions: editorInput,
-						// Override text editor view state - it's not valid for notebook editors
-						viewState: undefined,
-					};
-					return { editor: notebookEditorInput, options: notebookEditorOptions };
-				}
-			},
-		));
+				},
+			));
+		}
 	}
 }
 
