@@ -51,8 +51,11 @@ export class InlineOutputManager extends Disposable {
 			// Update existing zone
 			existing.zone.updateOutput(content, mimeType);
 		} else {
-			// Create new zone
-			const zone = new OutputZoneWidget(editor, cellEndLine);
+			// Create new zone with close callback
+			const zone = new OutputZoneWidget(editor, cellEndLine, () => {
+				// Remove from our tracking when closed
+				this.clearCellOutput(documentUri, cellEndLine);
+			});
 			zone.show();
 			zone.updateOutput(content, mimeType);
 			

@@ -13,23 +13,45 @@ import * as dom from '../../../../base/browser/dom.js';
  */
 export class OutputZoneWidget extends ZoneWidget {
 	private _outputContainer: HTMLElement;
+	private _closeButton: HTMLElement;
+	private _onCloseCallback?: () => void;
 
 	constructor(
 		editor: ICodeEditor,
-		private readonly afterLineNumber: number
+		private readonly afterLineNumber: number,
+		onClose?: () => void
 	) {
 		super(editor, {
-			showFrame: true,
+			showFrame: false, // Don't show blue border lines
 			showArrow: false,
 			isAccessible: true,
 			className: 'positron-inline-output-zone'
 		});
 
+		this._onCloseCallback = onClose;
 		this._outputContainer = dom.$('.positron-inline-output-container');
+		this._closeButton = dom.$('button.positron-inline-output-close', { 
+			title: 'Close Output',
+			'aria-label': 'Close Output'
+		});
+		this._closeButton.textContent = '✕';
+		
+		// Handle close button click
+		this._register(dom.addDisposableListener(this._closeButton, 'click', () => {
+			if (this._onCloseCallback) {
+				this._onCloseCallback();
+			}
+			this.dispose();
+		}));
+
 		this.create();
 	}
 
 	protected override _fillContainer(container: HTMLElement): void {
+		// Add close button at the top right
+		const header = dom.$('.positron-inline-output-header');
+		dom.append(header, this._closeButton);
+		dom.append(container, header);
 		dom.append(container, this._outputContainer);
 	}
 
@@ -38,6 +60,22 @@ export class OutputZoneWidget extends ZoneWidget {
 	 */
 	public override show(): void {
 		super.show({ lineNumber: this.afterLineNumber, column: 1 }, 5); // Show with 5 lines height initially
+	}
+
+	/**
+	 * Override to position the zone to align with editor content, not covering line numbers.
+	 */
+	protected override _getLeft(info: any): number {
+		// Position at contentLeft to align with the actual code content, not covering line numbers
+		return info.contentLeft || 0;
+	}
+
+	/**
+	 * Override to set width to match editor content area, not full editor width.
+	 */
+	protected override _getWidth(info: any): number {
+		// Use contentWidth instead of full width to match the code area
+		return info.contentWidth || (info.width - info.minimap.minimapWidth - info.verticalScrollbarWidth);
 	}
 
 	/**
