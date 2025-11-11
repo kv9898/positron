@@ -5,10 +5,9 @@
 
 import './positronInlineOutput.css';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-// import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { InlineOutputManager } from './inlineOutputManager.js';
-// import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -16,6 +15,8 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IRuntimeSessionService } from '../../../services/runtimeSession/common/runtimeSessionService.js';
+import { RuntimeCodeExecutionMode, RuntimeErrorBehavior } from '../../../services/languageRuntime/common/languageRuntimeService.js';
 
 /**
  * Main workbench contribution for inline output feature.
@@ -49,33 +50,128 @@ class RunCellInlineCommand extends Action2 {
 			category: 'View',
 			f1: true,
 			keybinding: {
-				when: ContextKeyExpr.and(
-					EditorContextKeys.editorTextFocus,
-					ContextKeyExpr.equals('editorLangId', 'quarto')
-				),
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter,
+				when: EditorContextKeys.editorTextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		// TODO: Implement actual execution logic
-		// For now, just show a test message
 		const codeEditorService = accessor.get(ICodeEditorService);
+		const runtimeSessionService = accessor.get(IRuntimeSessionService);
 		const activeEditor = codeEditorService.getFocusedCodeEditor();
 
 		if (!activeEditor) {
 			return;
 		}
 
-		// This is a placeholder - in full implementation, this would:
-		// 1. Detect the current code cell
-		// 2. Execute it via positron.runtime
-		// 3. Capture the output
-		// 4. Display it inline using the OutputManager
+		const model = activeEditor.getModel();
+		if (!model) {
+			return;
+		}
 
-		console.log('Run Cell Inline command triggered');
+		// Get the current selection or line
+		const selection = activeEditor.getSelection();
+		if (!selection) {
+			return;
+		}
+
+		let code: string;
+		let endLine: number;
+
+		if (selection.isEmpty()) {
+			// No selection, execute current line
+			const position = activeEditor.getPosition();
+			if (!position) {
+				return;
+			}
+			code = model.getLineContent(position.lineNumber);
+			endLine = position.lineNumber;
+		} else {
+			// Execute selected code
+			code = model.getValueInRange(selection);
+			endLine = selection.endLineNumber;
+		}
+
+		if (!code.trim()) {
+			return;
+		}
+
+		// Get the foreground runtime session
+		const session = runtimeSessionService.foregroundSession;
+		if (!session) {
+			console.warn('No active runtime session');
+			return;
+		}
+
+		// Create output manager
+		const outputManager = new InlineOutputManager();
+		let outputText = '';
+
+		// Subscribe to runtime messages to capture output
+		const disposables: any[] = [];
+
+		// Capture stream output (stdout)
+		disposables.push(session.onDidReceiveRuntimeMessageStream((message) => {
+			if (message.parent_id === executionId) {
+				outputText += message.text;
+			}
+		}));
+
+		// Capture output messages
+		disposables.push(session.onDidReceiveRuntimeMessageOutput((message) => {
+			if (message.parent_id === executionId) {
+				// Handle different output types
+				if (message.data['text/plain']) {
+					outputText += message.data['text/plain'];
+				}
+			}
+		}));
+
+		// Capture errors
+		disposables.push(session.onDidReceiveRuntimeMessageError((message) => {
+			if (message.parent_id === executionId) {
+				outputText += `Error: ${message.name}\n${message.message}\n`;
+				if (message.traceback && message.traceback.length > 0) {
+					outputText += message.traceback.join('\n');
+				}
+			}
+		}));
+
+		// Capture result
+		disposables.push(session.onDidReceiveRuntimeMessageResult((message) => {
+			if (message.parent_id === executionId) {
+				if (message.data['text/plain']) {
+					outputText += message.data['text/plain'];
+				}
+
+				// Show the accumulated output
+				if (outputText.trim()) {
+					outputManager.showOutput(
+						activeEditor,
+						model.uri,
+						endLine,
+						outputText,
+						'text/plain'
+					);
+				}
+
+				// Clean up event listeners
+				disposables.forEach(d => d.dispose());
+			}
+		}));
+
+		// Generate a unique execution ID
+		const executionId = `inline-${Date.now()}`;
+
+		// Execute the code
+		session.execute(
+			code,
+			executionId,
+			RuntimeCodeExecutionMode.Interactive,
+			RuntimeErrorBehavior.Continue
+		);
 	}
 }
 
