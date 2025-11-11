@@ -7,6 +7,7 @@
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ZoneWidget } from '../../../../editor/contrib/zoneWidget/browser/zoneWidget.js';
 import * as dom from '../../../../base/browser/dom.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 
 /**
  * A zone widget that displays code execution output inline in the editor.
@@ -15,6 +16,7 @@ export class OutputZoneWidget extends ZoneWidget {
 	private _outputContainer: HTMLElement;
 	private _closeButton: HTMLElement;
 	private _onCloseCallback?: () => void;
+	override readonly _disposables = new DisposableStore();
 
 	constructor(
 		editor: ICodeEditor,
@@ -30,14 +32,14 @@ export class OutputZoneWidget extends ZoneWidget {
 
 		this._onCloseCallback = onClose;
 		this._outputContainer = dom.$('.positron-inline-output-container');
-		this._closeButton = dom.$('button.positron-inline-output-close', { 
+		this._closeButton = dom.$('button.positron-inline-output-close', {
 			title: 'Close Output',
 			'aria-label': 'Close Output'
 		});
-		this._closeButton.textContent = '✕';
-		
+		this._closeButton.textContent = '\u2715';
+
 		// Handle close button click
-		this._register(dom.addDisposableListener(this._closeButton, 'click', () => {
+		this._disposables.add(dom.addDisposableListener(this._closeButton, 'click', () => {
 			if (this._onCloseCallback) {
 				this._onCloseCallback();
 			}
@@ -65,7 +67,7 @@ export class OutputZoneWidget extends ZoneWidget {
 	/**
 	 * Override to position the zone to align with editor content, not covering line numbers.
 	 */
-	protected override _getLeft(info: any): number {
+	getLeft(info: any): number {
 		// Position at contentLeft to align with the actual code content, not covering line numbers
 		return info.contentLeft || 0;
 	}
@@ -129,5 +131,10 @@ export class OutputZoneWidget extends ZoneWidget {
 	public clearOutput(): void {
 		dom.clearNode(this._outputContainer);
 		this._relayout(1);
+	}
+
+	public override dispose(): void {
+		this._disposables.dispose();
+		super.dispose();
 	}
 }
