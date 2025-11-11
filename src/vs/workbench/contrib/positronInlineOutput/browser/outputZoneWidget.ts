@@ -67,7 +67,7 @@ export class OutputZoneWidget extends ZoneWidget {
 	/**
 	 * Override to position the zone to align with editor content, not covering line numbers.
 	 */
-	getLeft(info: any): number {
+	protected override _getLeft(info: any): number {
 		// Position at contentLeft to align with the actual code content, not covering line numbers
 		return info.contentLeft || 0;
 	}
