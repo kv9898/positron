@@ -1511,4 +1511,23 @@ export class ExtHostLanguageRuntime implements extHostProtocol.ExtHostLanguageRu
 			}
 		}
 	}
+
+	/**
+	 * Receives a runtime message from the main thread for an observer.
+	 * This is used when code is executed via the API in a main thread console session,
+	 * and messages need to be forwarded to extHost observers.
+	 * 
+	 * @param message The runtime message to process
+	 */
+	$receiveRuntimeMessageForObserver(message: SerializableObjectWithBuffers<ILanguageRuntimeMessage>): void {
+		const runtimeMessage = message.value;
+		
+		// Check if there's an observer for this message's parent_id
+		if (runtimeMessage.parent_id && this._executionObservers.has(runtimeMessage.parent_id)) {
+			const observer = this._executionObservers.get(runtimeMessage.parent_id);
+			if (observer) {
+				this.handleObserverMessage(runtimeMessage, observer);
+			}
+		}
+	}
 }
