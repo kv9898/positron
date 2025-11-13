@@ -277,7 +277,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		return info.width - info.minimap.minimapWidth - info.verticalScrollbarWidth;
 	}
 
-	private _getLeft(info: EditorLayoutInfo): number {
+	protected _getLeft(info: EditorLayoutInfo): number {
 		// If minimap is to the left, we move beyond it
 		if (info.minimap.minimapWidth > 0 && info.minimap.minimapLeft === 0) {
 			return info.minimap.minimapWidth;
