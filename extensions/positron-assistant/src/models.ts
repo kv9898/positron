@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import * as positron from 'positron';
 import * as ai from 'ai';
-import { ModelConfig } from './config';
+import { ModelConfig, SecretStorage } from './config';
 import { AnthropicProvider, createAnthropic } from '@ai-sdk/anthropic';
 import { AzureOpenAIProvider, createAzure } from '@ai-sdk/azure';
 import { createVertex, GoogleVertexProvider } from '@ai-sdk/google-vertex';
@@ -23,6 +23,7 @@ import { DEFAULT_MAX_TOKEN_INPUT, DEFAULT_MAX_TOKEN_OUTPUT } from './constants.j
 import { log, recordRequestTokenUsage, recordTokenUsage } from './extension.js';
 import { TokenUsage } from './tokens.js';
 import { BedrockClient, InferenceProfileSummary, ListFoundationModelsCommand, ListInferenceProfilesCommand } from '@aws-sdk/client-bedrock';
+import { PositLanguageModel } from './posit.js';
 
 /**
  * Models used by chat participants and for vscode.lm.* API functionality.
@@ -43,7 +44,8 @@ class ErrorLanguageModel implements positron.ai.LanguageModelChatProvider {
 
 	constructor(
 		_config: ModelConfig,
-		private readonly _context?: vscode.ExtensionContext
+		private readonly _context?: vscode.ExtensionContext,
+		private readonly _storage?: SecretStorage,
 	) {
 		// No additional setup needed for error model
 	}
@@ -97,7 +99,8 @@ class EchoLanguageModel implements positron.ai.LanguageModelChatProvider {
 
 	constructor(
 		_config: ModelConfig,
-		private readonly _context?: vscode.ExtensionContext
+		private readonly _context?: vscode.ExtensionContext,
+		private readonly _storage?: SecretStorage,
 	) {
 		this.availableModels = [
 			{
@@ -273,7 +276,8 @@ abstract class AILanguageModel implements positron.ai.LanguageModelChatProvider 
 
 	constructor(
 		protected readonly _config: ModelConfig,
-		protected readonly _context?: vscode.ExtensionContext
+		protected readonly _context?: vscode.ExtensionContext,
+		private readonly _storage?: SecretStorage,
 	) {
 		this.id = _config.id;
 		this.name = _config.name;
@@ -1031,21 +1035,27 @@ export class AWSLanguageModel extends AILanguageModel implements positron.ai.Lan
 		super(_config, _context);
 
 		const environmentSettings = vscode.workspace.getConfiguration('positron.assistant.providerVariables').get<BedrockProviderVariables>('bedrock', {});
-		const environment: BedrockProviderVariables = { ...process.env as BedrockProviderVariables, ...environmentSettings };
+		log.debug(`[BedrockLanguageModel] positron.assistant.providerVariables.bedrock settings: ${JSON.stringify(environmentSettings)}`);
 
+		const { AWS_REGION, AWS_PROFILE }: BedrockProviderVariables = { ...process.env as BedrockProviderVariables, ...environmentSettings };
+		const region = AWS_REGION ?? 'us-east-1';
+		const profile = AWS_PROFILE ?? 'default';
+		const credentials = fromNodeProviderChain({ profile });
+
+		log.info(`[BedrockLanguageModel] Using AWS region: ${region} and profile: ${AWS_PROFILE ?? 'default'}`);
+
+		// We use ai-sdk for generating text for chat
 		this.aiProvider = createAmazonBedrock({
 			// AWS_ACCESS_KEY_ID, AWS_SESSION_TOKEN, and AWS_SECRET_ACCESS_KEY must be set
-			// sets the AWS region where the models are available
-			region: environment.AWS_REGION ?? 'us-east-1',
-			credentialProvider: fromNodeProviderChain({
-				profile: environment.AWS_PROFILE,
-			}),
+			region, // sets the AWS region where the models are available
+			credentialProvider: credentials
 		});
 
-		// This is used to get available models
+		// We use the Bedrock SDK to retrieve the list of available models instead
+		// of a predefined list.
 		this.bedrockClient = new BedrockClient({
-			region: process.env.AWS_REGION ?? 'us-east-1',
-			credentials: fromNodeProviderChain(),
+			region,
+			credentials: credentials
 		});
 		this.modelListing = [];
 	}
@@ -1083,7 +1093,7 @@ export class AWSLanguageModel extends AILanguageModel implements positron.ai.Lan
 		return vscode.l10n.t(`Amazon Bedrock error: {0}`, message);
 	}
 
-	override async provideLanguageModelChatInformation(options: { silent: boolean; }, token: vscode.CancellationToken): Promise<vscode.LanguageModelChatInformation[]> {
+	override async provideLanguageModelChatInformation(options: { silent: boolean }, token: vscode.CancellationToken): Promise<vscode.LanguageModelChatInformation[]> {
 		await this.resolveModels(token);
 		return this.modelListing || [];
 	}
@@ -1207,6 +1217,7 @@ export function getLanguageModels() {
 		OpenAILanguageModel,
 		OpenAICompatibleLanguageModel,
 		OpenRouterLanguageModel,
+		PositLanguageModel,
 		VertexLanguageModel,
 	];
 	return languageModels;
@@ -1248,12 +1259,12 @@ export function createModelConfigsFromEnv(): ModelConfig[] {
 }
 
 // export function newLanguageModel(config: ModelConfig, context: vscode.ExtensionContext): positron.ai.LanguageModelChatProvider {
-export function newLanguageModelChatProvider(config: ModelConfig, context: vscode.ExtensionContext): positron.ai.LanguageModelChatProvider {
+export function newLanguageModelChatProvider(config: ModelConfig, context: vscode.ExtensionContext, storage: SecretStorage): positron.ai.LanguageModelChatProvider {
 	const providerClass = getLanguageModels().find((cls) => cls.source.provider.id === config.provider);
 	if (!providerClass) {
 		throw new Error(`Unsupported chat provider: ${config.provider}`);
 	}
-	return new providerClass(config, context);
+	return new providerClass(config, context, storage);
 }
 
 class GoogleLanguageModel extends AILanguageModel implements positron.ai.LanguageModelChatProvider {
@@ -1276,7 +1287,7 @@ class GoogleLanguageModel extends AILanguageModel implements positron.ai.Languag
 		},
 	};
 
-	constructor(_config: ModelConfig, _context?: vscode.ExtensionContext) {
+	constructor(_config: ModelConfig, _context?: vscode.ExtensionContext, _storage?: SecretStorage) {
 		super(_config, _context);
 		this.aiProvider = createGoogleGenerativeAI({
 			apiKey: this._config.apiKey,
@@ -1303,20 +1314,20 @@ export const availableModels = new Map<string, ModelDefinition[]>(
 		//
 		['anthropic-api', [
 			{
-				name: 'Claude 4 Sonnet',
-				identifier: 'claude-sonnet-4',
+				name: 'Claude Sonnet 4.5',
+				identifier: 'claude-sonnet-4-5',
 				maxInputTokens: 200_000, // reference: https://docs.anthropic.com/en/docs/about-claude/models/all-models#model-comparison-table
 				maxOutputTokens: 64_000, // reference: https://docs.anthropic.com/en/docs/about-claude/models/all-models#model-comparison-table
 			},
 			{
-				name: 'Claude 4 Opus',
-				identifier: 'claude-opus-4',
+				name: 'Claude Opus 4.1',
+				identifier: 'claude-opus-4-1',
 				maxInputTokens: 200_000, // reference: https://docs.anthropic.com/en/docs/about-claude/models/all-models#model-comparison-table
 				maxOutputTokens: 32_000, // reference: https://docs.anthropic.com/en/docs/about-claude/models/all-models#model-comparison-table
 			},
 			{
-				name: 'Claude 3.7 Sonnet v1',
-				identifier: 'claude-3-7-sonnet',
+				name: 'Claude Haiku 4.5',
+				identifier: 'claude-haiku-4-5',
 				maxInputTokens: 200_000, // reference: https://docs.anthropic.com/en/docs/about-claude/models/all-models#model-comparison-table
 				maxOutputTokens: 64_000, // reference: https://docs.anthropic.com/en/docs/about-claude/models/all-models#model-comparison-table
 			},

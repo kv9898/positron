@@ -289,6 +289,14 @@
               "preview"
             ]
           },
+          "positron.assistant.notebookMode.enable": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.notebookMode.enable.description%",
+            "tags": [
+              "experimental"
+            ]
+          },
           "positron.assistant.toolErrors.propagate": {
             "type": "boolean",
             "default": false,
@@ -308,10 +316,10 @@
           "positron.assistant.filterModels": {
             "type": "array",
             "default": [
-              "Claude*",
-              "GPT*",
-              "anthropic/claude*",
-              "openai/gpt*"
+              "*Claude*",
+              "*GPT*",
+              "*claude*",
+              "*gpt*"
             ],
             "markdownDescription": "%configuration.filterModels.description%",
             "items": {
@@ -401,6 +409,11 @@
       {
         "vendor": "openai-compatible",
         "displayName": "Custom Provider",
+        "managementCommand": "positron-assistant.configureModels"
+      },
+      {
+        "vendor": "posit-ai",
+        "displayName": "Posit AI",
         "managementCommand": "positron-assistant.configureModels"
       }
     ],
@@ -612,15 +625,14 @@
       {
         "name": "getProjectTree",
         "displayName": "Get Project Tree",
-        "modelDescription": "Get the project tree of the current workspace as a JSON object. This is useful for understanding the structure of the project and finding files and folders. Empty folders are not included in the tree.",
+        "modelDescription": "Get the project tree of the current workspace as a JSON object. This is useful for understanding the structure of the project and finding files. Empty folders are not included in the tree.",
         "icon": "$(file-directory)",
         "toolReferenceName": "projectTree",
         "userDescription": "Get the project tree of the current workspace.",
         "canBeReferencedInPrompt": true,
         "tags": [
           "positron-assistant",
-          "requires-workspace",
-          "high-token-usage"
+          "requires-workspace"
         ],
         "inputSchema": {
           "type": "object",
@@ -631,10 +643,7 @@
                 "type": "string",
                 "description": "A Glob pattern to include in the project tree. Only the files and folders matching these patterns will be considered. If files are also matched by the `excludes` patterns, they will be filtered out."
               },
-              "description": "Glob patterns to include in the project tree. By default, all files and folders in the workspace will be considered.",
-              "default": [
-                "**/*"
-              ]
+              "description": "Glob patterns to include in the project tree. This parameter is required. Use specific patterns to target relevant files (e.g., ['src/**/*.ts'], ['*.py', 'tests/**'])."
             },
             "exclude": {
               "type": "array",
@@ -642,34 +651,22 @@
                 "type": "string",
                 "description": "A Glob pattern to exclude from the project tree. Files and folders matching these patterns will be filtered out, even if they match an included Glob."
               },
-              "description": "Glob patterns to exclude from the project tree. These patterns will be applied in addition to the default excludes. By default, directories for dependencies, build artifacts, and other commonly ignored files are excluded, such as `.venv`, `venv`, `renv`, `node_modules`."
+              "description": "Glob patterns to exclude from the project tree. These patterns will be applied _in addition to_ the default excludes unless `skipDefaultExcludes` is true."
             },
-            "replaceDefaultExcludes": {
+            "skipDefaultExcludes": {
               "type": "boolean",
-              "description": "Whether to replace the default excludes with the provided `exclude` patterns. If false, the provided `exclude` patterns will be added to the default excludes.",
+              "description": "Whether to skip all automatic exclusions (.gitignore rules, VS Code exclude settings, and default exclusions for dependencies, build artifacts, and other commonly ignored files/directories). When true, only the explicit `exclude` patterns will be applied.",
               "default": false
-            },
-            "excludeSettings": {
-              "type": "string",
-              "description": "Which exclude settings to consult when filtering the project tree. Options are: filesExclude or searchAndFilesExclude, or an empty string for no exclude settings.",
-              "default": "searchAndFilesExclude"
-            },
-            "ignoreFiles": {
-              "type": "boolean",
-              "description": "Whether to ignore files that are listed in the `.gitignore` file or other ignore files.",
-              "default": true
-            },
-            "filterResults": {
-              "type": "boolean",
-              "description": "Whether to filter results using excludes and ignore files. If false, none of the excludes or ignores will be applied, and only the `include` patterns will be considered. Use this setting when providing specific includes to locate particular files and folders.",
-              "default": true
             },
             "maxFiles": {
               "type": "number",
-              "description": "The maximum number of files to include in the project tree. If this limit is reached, a compressed description of the project will be provided instead.",
-              "default": 500
+              "description": "The maximum number of files to include in the project tree (<=50). If this limit is reached, a compressed description of the project will be provided instead.",
+              "default": 50
             }
-          }
+          },
+          "required": [
+            "include"
+          ]
         }
       },
       {
@@ -708,6 +705,116 @@
               }
             }
           }
+        }
+      },
+      {
+        "name": "runNotebookCells",
+        "displayName": "Run Notebook Cells",
+        "modelDescription": "Execute one or more cells in the active notebook and return their outputs. Use this when the user wants to run code cells or see the results of cell execution.",
+        "toolReferenceName": "runNotebookCells",
+        "canBeReferencedInPrompt": true,
+        "tags": [
+          "positron-assistant",
+          "requires-notebook"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "cellIndices": {
+              "type": "array",
+              "description": "Array of cell indices to execute. Each index is a 0-based position of the cell in the notebook.",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          "required": [
+            "cellIndices"
+          ]
+        }
+      },
+      {
+        "name": "editNotebookCells",
+        "displayName": "Edit Notebook Cells",
+        "modelDescription": "Perform edit operations on notebook cells. Use operation='add' to create new cells (requires cellType, index, and content), operation='update' to modify existing cells (requires cellIndex and content), or operation='delete' to remove cells (requires cellIndex). Use index=-1 to append cells at the end when adding.",
+        "toolReferenceName": "editNotebookCells",
+        "canBeReferencedInPrompt": true,
+        "tags": [
+          "positron-assistant",
+          "requires-notebook"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "type": "string",
+              "enum": [
+                "add",
+                "update",
+                "delete"
+              ],
+              "description": "Type of edit operation to perform. 'add' creates a new cell, 'update' modifies existing cell content, 'delete' removes a cell."
+            },
+            "cellType": {
+              "type": "string",
+              "enum": [
+                "code",
+                "markdown"
+              ],
+              "description": "Type of cell to create. Required when operation is 'add'. Use 'code' for executable cells, 'markdown' for documentation."
+            },
+            "index": {
+              "type": "number",
+              "description": "Position to insert the cell (0-based). Required when operation is 'add'. Use -1 to append at the end."
+            },
+            "content": {
+              "type": "string",
+              "description": "Cell content. Required when operation is 'add' or 'update'."
+            },
+            "cellIndex": {
+              "type": "number",
+              "description": "Index of the cell to modify or delete (0-based). Required when operation is 'update' or 'delete'."
+            }
+          },
+          "required": [
+            "operation"
+          ]
+        }
+      },
+      {
+        "name": "getNotebookCells",
+        "displayName": "Get Notebook Cells",
+        "modelDescription": "Retrieve information about notebook cells with flexible operations. Use operation='get' to fetch specific cells by index or all cells if cellIndices is omitted, operation='getSelected' to get only selected cells, operation='getOutputs' to retrieve cell execution outputs (requires cellIndices), or operation='getMetadata' to get only cell status information without content.",
+        "toolReferenceName": "getNotebookCells",
+        "canBeReferencedInPrompt": true,
+        "tags": [
+          "positron-assistant",
+          "requires-notebook"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "type": "string",
+              "enum": [
+                "get",
+                "getSelected",
+                "getOutputs",
+                "getMetadata"
+              ],
+              "description": "Type of read operation. 'get' retrieves cell info, 'getSelected' gets only selected cells, 'getOutputs' retrieves cell execution outputs, 'getMetadata' gets only status/execution info without content."
+            },
+            "cellIndices": {
+              "type": "array",
+              "description": "Optional array of cell indices to retrieve (0-based). Required for 'getOutputs'. For 'get', returns all cells if omitted. Ignored for 'getSelected' and 'getMetadata'.",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          "required": [
+            "operation"
+          ]
         }
       }
     ]
