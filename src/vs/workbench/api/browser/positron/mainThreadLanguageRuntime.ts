@@ -1404,12 +1404,6 @@ export class MainThreadLanguageRuntime
 	private readonly _registeredRuntimes: Map<string, ILanguageRuntimeMetadata> = new Map();
 
 	/**
-	 * Set of execution IDs that have observers in the extension host.
-	 * Used to forward messages from main thread console sessions to extHost observers.
-	 */
-	private readonly _executionIdsWithObservers: Set<string> = new Set();
-
-	/**
 	 * Instance counter
 	 */
 	private static MAX_ID = 0;
@@ -1475,66 +1469,6 @@ export class MainThreadLanguageRuntime
 					this._proxy.$notifyCodeExecuted(event);
 				}
 			));
-
-		// Forward runtime messages to extHost observers for API executions
-		// Subscribe to new runtime sessions to listen for messages
-		this._disposables.add(
-			this._runtimeSessionService.onDidStartRuntime((session) => {
-				// Listen to messages from this session and forward ones that have observers
-				const messageDisposable = session.onDidReceiveRuntimeMessage((message) => {
-					// Check if this message has a parent_id with an observer
-					if (message.parent_id && this._executionIdsWithObservers.has(message.parent_id)) {
-						// Forward the message to the extHost
-						this._proxy.$receiveRuntimeMessageForObserver(
-							new SerializableObjectWithBuffers(message)
-						);
-
-						// If this is a State Idle message, the execution is complete, so remove the tracking
-						if (message.type === LanguageRuntimeMessageType.State) {
-							const stateMessage = message as ILanguageRuntimeMessageState;
-							if (stateMessage.state === RuntimeOnlineState.Idle) {
-								this._executionIdsWithObservers.delete(message.parent_id);
-							}
-						}
-					}
-				});
-
-				// Clean up when the session ends
-				const stateDisposable = session.onDidChangeRuntimeState((state) => {
-					if (state === RuntimeState.Exited) {
-						messageDisposable.dispose();
-						stateDisposable.dispose();
-					}
-				});
-			})
-		);
-
-		// Also subscribe to existing sessions
-		for (const session of this._runtimeSessionService.activeSessions) {
-			const messageDisposable = session.onDidReceiveRuntimeMessage((message) => {
-				if (message.parent_id && this._executionIdsWithObservers.has(message.parent_id)) {
-					this._proxy.$receiveRuntimeMessageForObserver(
-						new SerializableObjectWithBuffers(message)
-					);
-
-					if (message.type === LanguageRuntimeMessageType.State) {
-						const stateMessage = message as ILanguageRuntimeMessageState;
-						if (stateMessage.state === RuntimeOnlineState.Idle) {
-							this._executionIdsWithObservers.delete(message.parent_id);
-						}
-					}
-				}
-			});
-
-			this._disposables.add(messageDisposable);
-
-			const stateDisposable = session.onDidChangeRuntimeState((state) => {
-				if (state === RuntimeState.Exited) {
-					messageDisposable.dispose();
-					stateDisposable.dispose();
-				}
-			});
-		}
 
 		this._disposables.add(this._runtimeSessionService.registerSessionManager(this));
 	}
@@ -1772,11 +1706,6 @@ export class MainThreadLanguageRuntime
 		mode?: RuntimeCodeExecutionMode,
 		errorBehavior?: RuntimeErrorBehavior,
 		executionId?: string): Promise<string> {
-
-		// If an execution ID is provided, track it so we can forward messages to the extHost observer
-		if (executionId) {
-			this._executionIdsWithObservers.add(executionId);
-		}
 
 		// Attribute this code to the extension that requested it.
 		const attribution: IConsoleCodeAttribution = {
