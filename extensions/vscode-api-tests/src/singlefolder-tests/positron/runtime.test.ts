@@ -48,7 +48,7 @@ class TestLanguageRuntimeSession implements positron.LanguageRuntimeSession {
 		return `msg-${TestLanguageRuntimeSession.messageId++}`;
 	}
 
-	execute(code: string, id: string, _mode: positron.RuntimeCodeExecutionMode): void {
+	execute(code: string, id: string, mode: positron.RuntimeCodeExecutionMode): void {
 		this._currentExecutionId = id;
 		this._executingCode = code;
 
@@ -64,15 +64,17 @@ class TestLanguageRuntimeSession implements positron.LanguageRuntimeSession {
 		// Simulate starting with busy state
 		this._onDidChangeRuntimeState.fire(positron.RuntimeState.Busy);
 
-		// Acknowledge the input
-		this._onDidReceiveRuntimeMessage.fire({
-			id: this.generateMessageId(),
-			parent_id: id,
-			when: new Date().toISOString(),
-			type: positron.LanguageRuntimeMessageType.Input,
-			code,
-			execution_count: ++this._executionCount,
-		} as positron.LanguageRuntimeInput);
+		// Acknowledge the input (but not in Silent mode, per Jupyter protocol)
+		if (mode !== positron.RuntimeCodeExecutionMode.Silent) {
+			this._onDidReceiveRuntimeMessage.fire({
+				id: this.generateMessageId(),
+				parent_id: id,
+				when: new Date().toISOString(),
+				type: positron.LanguageRuntimeMessageType.Input,
+				code,
+				execution_count: ++this._executionCount,
+			} as positron.LanguageRuntimeInput);
+		}
 
 		// Simulate an error if the code is 'error'
 		if (code === 'error') {
@@ -853,5 +855,91 @@ suite('positron API - executeCode', () => {
 			// Expected behavior - getSessionVariables should throw when the variable doesn't exist
 			assert.ok(error.message.includes('z'), 'Error should mention the missing variable name');
 		}
+	});
+
+	test('observer events fire correctly in Silent mode', async () => {
+		// Setup a runtime manager and session
+		const manager = new TestLanguageRuntimeManager();
+		const managerDisposable = positron.runtime.registerLanguageRuntimeManager('test', manager);
+		disposables.push(managerDisposable);
+
+		// Wait for the runtime to be registered
+		await poll(
+			async () => (await positron.runtime.getRegisteredRuntimes())
+				.filter(runtime => runtime.languageId === 'test'),
+			runtimes => runtimes.length > 0,
+			'test runtime should be registered'
+		);
+
+		// Test results tracking
+		const observerEvents: string[] = [];
+		let startCalled = false;
+		let finishCalled = false;
+		let outputText: string | undefined;
+		let errorText: string | undefined;
+		let completionResult: Record<string, any> | undefined;
+
+		// Create the observer
+		const observer: positron.runtime.ExecutionObserver = {
+			onStarted: () => {
+				startCalled = true;
+				observerEvents.push('started');
+			},
+
+			onOutput: (message: string) => {
+				outputText = message;
+				observerEvents.push('output');
+			},
+
+			onError: (message: string) => {
+				errorText = message;
+				observerEvents.push('error');
+			},
+
+			onCompleted: (result: Record<string, any>) => {
+				completionResult = result;
+				observerEvents.push('completed');
+			},
+
+			onFinished: () => {
+				finishCalled = true;
+				observerEvents.push('finished');
+			}
+		};
+
+		// Execute the code in Silent mode with our observer
+		const result = await Promise.race([
+			positron.runtime.executeCode(
+				'test',           // languageId
+				'print("Hello")', // code
+				false,            // focus
+				false,            // allowIncomplete
+				positron.RuntimeCodeExecutionMode.Silent,
+				positron.RuntimeErrorBehavior.Stop,
+				observer
+			),
+			new Promise<any>((_, reject) => {
+				setTimeout(() => {
+					reject(new Error('Execution timed out after 2 seconds'));
+				}, 2000);
+			})
+		]);
+
+		// Verify the execution produced a result
+		assert.ok(result, 'executeCode should return a result object');
+
+		// Verify that all expected observer callbacks were called
+		assert.strictEqual(startCalled, true, 'onStarted should be called even in Silent mode');
+		assert.strictEqual(finishCalled, true, 'onFinished should be called even in Silent mode');
+		assert.ok(outputText, 'onOutput should be called with text even in Silent mode');
+		assert.ok(errorText, 'onError should be called with text even in Silent mode');
+		assert.ok(completionResult, 'onCompleted should be called with result even in Silent mode');
+
+		// Verify events were called in correct order
+		assert.deepStrictEqual(
+			observerEvents,
+			['started', 'output', 'error', 'completed', 'finished'],
+			'Observer events should be called in the expected order even in Silent mode'
+		);
 	});
 });
