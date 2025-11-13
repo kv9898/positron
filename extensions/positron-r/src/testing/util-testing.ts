@@ -19,6 +19,7 @@ export interface TestingTools {
 	packageName: string;
 	controller: vscode.TestController;
 	testItemData: WeakMap<vscode.TestItem, ItemType>;
+	isPackage: boolean;
 }
 
 export function encodeNodeId(

@@ -8,7 +8,7 @@ import { TestingTools } from './util-testing';
 import { getOrCreateFileItem } from './loader';
 import { parseTestsFromFile } from './parser';
 import { LOGGER } from '../extension';
-import { detectRPackage } from '../contexts';
+import { detectRPackage, detectTestthat } from '../contexts';
 import { getFirstWorkspaceFolder } from './testing';
 
 const testsPattern = 'tests';
@@ -69,8 +69,10 @@ export async function refreshTestthatStatus(): Promise<void> {
 
 	try {
 		const isRPackage = await detectRPackage();
-		if (!isRPackage) {
-			LOGGER.info('Not working in an R package');
+		const hasTestthat = await detectTestthat();
+		
+		if (!isRPackage && !hasTestthat) {
+			LOGGER.info('Not working in an R package or a project using testthat');
 			return;
 		}
 
