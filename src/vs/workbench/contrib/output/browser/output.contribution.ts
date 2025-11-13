@@ -41,6 +41,8 @@ import { ViewAction } from '../../../browser/parts/views/viewPane.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { basename } from '../../../../base/common/resources.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 
 const IMPORTED_LOG_ID_PREFIX = 'importedLog.';
 
@@ -850,4 +852,61 @@ KeybindingsRegistry.registerKeybindingRule({
 	when: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext, ContextKeyExpr.equals(FocusedViewContext.key, OUTPUT_VIEW_ID)),
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow,
 	weight: KeybindingWeight.WorkbenchContrib
+});
+
+// Register copy command for output pane
+// This provides a reliable copy mechanism using the clipboard service instead of execCommand
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.action.output.copySelection',
+	weight: KeybindingWeight.WorkbenchContrib + 1,
+	when: ContextKeyExpr.and(EditorContextKeys.textInputFocus, ContextKeyExpr.equals(FocusedViewContext.key, OUTPUT_VIEW_ID)),
+	primary: KeyMod.CtrlCmd | KeyCode.KeyC,
+	handler: async (accessor: ServicesAccessor) => {
+		const clipboardService = accessor.get(IClipboardService);
+		const codeEditorService = accessor.get(ICodeEditorService);
+		
+		const focusedEditor = codeEditorService.getFocusedCodeEditor();
+		if (focusedEditor) {
+			const selection = focusedEditor.getSelection();
+			if (selection && !selection.isEmpty()) {
+				const model = focusedEditor.getModel();
+				if (model) {
+					const selectedText = model.getValueInRange(selection);
+					await clipboardService.writeText(selectedText);
+				}
+			}
+		}
+	}
+});
+
+// Register copy action in context menu for output pane
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.output.copySelectionContextMenu',
+			title: nls.localize2('copyOutput.label', "Copy"),
+			menu: {
+				id: MenuId.EditorContext,
+				when: CONTEXT_IN_OUTPUT,
+				group: '9_cutcopypaste',
+				order: 2
+			}
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const clipboardService = accessor.get(IClipboardService);
+		const codeEditorService = accessor.get(ICodeEditorService);
+		
+		const focusedEditor = codeEditorService.getFocusedCodeEditor();
+		if (focusedEditor) {
+			const selection = focusedEditor.getSelection();
+			if (selection && !selection.isEmpty()) {
+				const model = focusedEditor.getModel();
+				if (model) {
+					const selectedText = model.getValueInRange(selection);
+					await clipboardService.writeText(selectedText);
+				}
+			}
+		}
+	}
 });
