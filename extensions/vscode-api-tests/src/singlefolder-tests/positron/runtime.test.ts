@@ -65,6 +65,7 @@ class TestLanguageRuntimeSession implements positron.LanguageRuntimeSession {
 		this._onDidChangeRuntimeState.fire(positron.RuntimeState.Busy);
 
 		// Acknowledge the input (but not in Silent mode, per Jupyter protocol)
+		// In Silent mode, execution_count is not incremented and Input message is not sent
 		if (mode !== positron.RuntimeCodeExecutionMode.Silent) {
 			this._onDidReceiveRuntimeMessage.fire({
 				id: this.generateMessageId(),
