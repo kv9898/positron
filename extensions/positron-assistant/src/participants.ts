@@ -21,8 +21,7 @@ import { getCommitChanges } from './git.js';
 import { getEnabledTools, getPositronContextPrompts } from './api.js';
 import { TokenUsage } from './tokens.js';
 import { PromptRenderer } from './promptRender.js';
-import { formatCells } from './tools/notebookUtils.js';
-import { filterNotebookContext, calculateSlidingWindow } from './notebookContextFilter.js';
+import { getAttachedNotebookContext, serializeNotebookContextAsUserMessage } from './tools/notebookUtils.js';
 
 export enum ParticipantID {
 	/** The participant used in the chat pane in Ask mode. */
@@ -262,7 +261,7 @@ abstract class PositronAssistantParticipant implements IPositronAssistantPartici
 		const positronContext = await positron.ai.getPositronChatContext(request);
 
 		// List of tools for use by the language model.
-		const enabledTools = await getEnabledTools(request, vscode.lm.tools, this.id);
+		const enabledTools = getEnabledTools(request, vscode.lm.tools, this.id);
 		const toolAvailability = new Map(
 			vscode.lm.tools.map(
 				tool => [tool.name as PositronAssistantToolName, enabledTools.includes(tool.name as PositronAssistantToolName)]
@@ -329,8 +328,24 @@ abstract class PositronAssistantParticipant implements IPositronAssistantPartici
 		addCacheControlBreakpointPartsToLastUserMessages(messages, 2);
 
 		// Add a user message containing context about the request, workspace, running sessions, etc.
-		// The context message is the second-last message in the chat messages.
+		// The context message is fairly stable during iterative workflows, so it comes before
+		// the more volatile notebook context.
 		const contextInfo = await attachContextInfo(messages);
+
+		// Add notebook context as a separate user message with cache breakpoint.
+		// This is placed AFTER the general context message because notebook state (cells, selection)
+		// changes more frequently than session variables. By placing the most volatile content last,
+		// we maximize cache hits on the stable prefix (system prompt + context message).
+		const notebookContext = await getAttachedNotebookContext(request);
+		if (notebookContext) {
+			const notebookContextContent = serializeNotebookContextAsUserMessage(notebookContext);
+			const notebookMessage = vscode.LanguageModelChatMessage.User([
+				new vscode.LanguageModelTextPart(notebookContextContent),
+				languageModelCacheBreakpointPart(), // Cache breakpoint after notebook context
+			]);
+			messages.push(notebookMessage);
+			log.debug(`[participant] Added notebook context as user message (${notebookContextContent.length} chars)`);
+		}
 
 		// Add the user's prompt.
 		// The user's prompt is the last message in the chat messages.
@@ -630,6 +645,8 @@ abstract class PositronAssistantParticipant implements IPositronAssistantPartici
 				toolInvocationToken: request.toolInvocationToken,
 				// Pass the request ID through modelOptions for token usage tracking
 				requestId: request.id,
+				// Pass the session ID through modelOptions for chat session tracking
+				sessionId: request.sessionId,
 			},
 		}, token);
 
@@ -752,64 +769,6 @@ abstract class PositronAssistantParticipant implements IPositronAssistantPartici
 	dispose(): void { }
 }
 
-/**
- * Checks if notebook mode should be enabled based on attached context.
- * Returns filtered notebook context only if:
- * 1. A notebook editor is currently active
- * 2. That notebook's URI is attached as context
- *
- * Applies filtering to limit context size for large notebooks.
- */
-export async function getAttachedNotebookContext(
-	request: vscode.ChatRequest
-): Promise<positron.notebooks.NotebookContext | undefined> {
-	// Check if notebook mode feature is enabled
-	const notebookModeEnabled = vscode.workspace
-		.getConfiguration('positron.assistant.notebookMode')
-		.get('enable', false);
-
-	if (!notebookModeEnabled) {
-		return undefined;
-	}
-
-	// Get active editor's notebook context (unfiltered from main thread)
-	const activeContext = await positron.notebooks.getContext();
-	if (!activeContext) {
-		return undefined;
-	}
-
-	// Extract attached notebook URIs
-	const attachedNotebookUris = request.references
-		.map(ref => {
-			// Check for activeSession.notebookUri
-			const sessionNotebookUri = (ref.value as any)?.activeSession?.notebookUri;
-			if (typeof sessionNotebookUri === 'string') {
-				return sessionNotebookUri;
-			}
-			// Check for direct .ipynb file reference
-			if (ref.value instanceof vscode.Uri && ref.value.path.endsWith('.ipynb')) {
-				return ref.value.toString();
-			}
-			return undefined;
-		})
-		.filter(uri => typeof uri === 'string');
-
-	if (attachedNotebookUris.length === 0) {
-		return undefined;
-	}
-
-	// Check if active notebook is in attached context
-	const isActiveNotebookAttached = attachedNotebookUris.includes(
-		activeContext.uri
-	);
-
-	if (!isActiveNotebookAttached) {
-		return undefined;
-	}
-
-	// Apply filtering before returning context
-	return filterNotebookContext(activeContext);
-}
 
 /** The participant used in the chat pane in Ask mode. */
 export class PositronAssistantChatParticipant extends PositronAssistantParticipant implements IPositronAssistantParticipant {
@@ -819,16 +778,12 @@ export class PositronAssistantChatParticipant extends PositronAssistantParticipa
 		const activeSessions = await positron.runtime.getActiveSessions();
 		const sessions = activeSessions.map(session => session.runtimeMetadata);
 
-		// Get notebook context if available, with error handling
-		let notebookContext: positron.notebooks.NotebookContext | undefined;
-		try {
-			notebookContext = await getAttachedNotebookContext(request);
-		} catch (err) {
-			log.error('[PositronAssistantChatParticipant] Error checking notebook context:', err);
-		}
+		// Get notebook context if available
+		const notebookContext = await getAttachedNotebookContext(request);
 
 		// Render prompt with notebook context
-		const prompt = PromptRenderer.renderModePrompt(positron.PositronChatMode.Ask, {
+		const prompt = PromptRenderer.renderModePrompt({
+			mode: positron.PositronChatMode.Ask,
 			request,
 			sessions,
 			notebookContext
@@ -850,7 +805,8 @@ export class PositronAssistantEditParticipant extends PositronAssistantParticipa
 		const notebookContext = await getAttachedNotebookContext(request);
 
 		// Render prompt with notebook context
-		const prompt = PromptRenderer.renderModePrompt(positron.PositronChatMode.Edit, {
+		const prompt = PromptRenderer.renderModePrompt({
+			mode: positron.PositronChatMode.Edit,
 			request,
 			sessions,
 			notebookContext
@@ -872,7 +828,8 @@ export class PositronAssistantAgentParticipant extends PositronAssistantParticip
 		const notebookContext = await getAttachedNotebookContext(request);
 
 		// Render prompt with notebook context
-		const prompt = PromptRenderer.renderModePrompt(positron.PositronChatMode.Agent, {
+		const prompt = PromptRenderer.renderModePrompt({
+			mode: positron.PositronChatMode.Agent,
 			request,
 			sessions,
 			notebookContext
@@ -890,7 +847,11 @@ export class PositronAssistantTerminalParticipant extends PositronAssistantParti
 		// The terminal prompt includes how to handle warnings in the response.
 		const activeSessions = await positron.runtime.getActiveSessions();
 		const sessions = activeSessions.map(session => session.runtimeMetadata);
-		const prompt = PromptRenderer.renderModePrompt(positron.PositronChatAgentLocation.Terminal, { request, sessions });
+		const prompt = PromptRenderer.renderModePrompt({
+			mode: positron.PositronChatAgentLocation.Terminal,
+			request,
+			sessions
+		});
 		return prompt.content;
 	}
 }
@@ -905,7 +866,11 @@ export class PositronAssistantEditorParticipant extends PositronAssistantPartici
 		}
 
 		const streamingEdits = isStreamingEditsEnabled();
-		const prompt = PromptRenderer.renderModePrompt(positron.PositronChatAgentLocation.Editor, { request, streamingEdits });
+		const prompt = PromptRenderer.renderModePrompt({
+			mode: positron.PositronChatAgentLocation.Editor,
+			request,
+			streamingEdits
+		});
 		return prompt.content;
 	}
 
@@ -959,103 +924,25 @@ export class PositronAssistantEditorParticipant extends PositronAssistantPartici
 
 }
 
-/** The participant used in notebook inline chats. */
+/**
+ * The participant used in notebook inline chats.
+ *
+ * Notebook context is injected as a separate user message in defaultRequestHandler()
+ * rather than via getCustomPrompt(). This allows the system prompt to contain only
+ * static instructions (cacheable), while dynamic notebook state is added as a user
+ * message with its own cache breakpoint.
+ */
 export class PositronAssistantNotebookParticipant extends PositronAssistantEditorParticipant implements IPositronAssistantParticipant {
 	id = ParticipantID.Notebook;
 
-	override async getCustomPrompt(request: vscode.ChatRequest): Promise<string> {
-		// Check if notebook mode feature is enabled
-		const notebookModeEnabled = vscode.workspace
-			.getConfiguration('positron.assistant.notebookMode')
-			.get('enable', false);
-
-		if (!notebookModeEnabled) {
-			log.debug('[notebook participant] Notebook mode disabled via feature flag');
-			return super.getCustomPrompt(request);
-		}
-
-		// Get the active notebook context
-		const notebookContext = await positron.notebooks.getContext();
-		if (!notebookContext) {
-			log.debug('[notebook participant] No notebook context available for inline chat');
-			return super.getCustomPrompt(request);
-		}
-
-		// Positron notebooks send requests with the location2 type of
-		// ChatRequestEditorData which is because it's much easier/cleaner to
-		// just route the requests from positron notebooks here without totally
-		// changing the request body. Standard VS Code notebooks send We rely on
-		// the editor being a positron notebook for notebook-wide awareness so
-		// we can return early if it's not.
-		if (!(request.location2 instanceof vscode.ChatRequestEditorData)) {
-			// Fall back to non-positron-notebook aware behavior.
-			return super.getCustomPrompt(request);
-		}
-
-		const cellDoc = request.location2.document;
-
-		const cellUri = cellDoc.uri.toString();
-
-		// Get all cells from the notebook
-		let allCells: positron.notebooks.NotebookCell[];
-		try {
-			allCells = await positron.notebooks.getCells(notebookContext.uri);
-		} catch (err) {
-			log.error('[notebook participant] Failed to get notebook cells:', err);
-			return super.getCustomPrompt(request);
-		}
-
-		// Find the current cell by matching URI
-		const currentCell = allCells.find(c => c.id === cellUri);
-		if (!currentCell) {
-			log.debug('[notebook participant] Could not find current cell in notebook');
-			return super.getCustomPrompt(request);
-		}
-
-		// Calculate adaptive 20-cell context window around the current cell
-		// Window rules:
-		// - Cell in middle: 10 cells before + current + 10 cells after
-		// - Cell at top: current + 20 cells after
-		// - Cell at bottom: 20 cells before + current
-		// - Notebook < 21 cells: all cells included
-		const currentIndex = currentCell.index;
-		const totalCells = allCells.length;
-
-		const { startIndex, endIndex } = calculateSlidingWindow(totalCells, currentIndex);
-		const contextCells = allCells.slice(startIndex, endIndex);
-
-		// Format current cell separately to highlight it
-		const currentCellText = formatCells({ cells: [currentCell], prefix: 'Current Cell' });
-
-		// Format context cells (including current cell in the window)
-		const contextCellsText = formatCells({ cells: contextCells, prefix: 'Cell' });
-
-		// Get file path for context
-		const notebookPath = uriToString(vscode.Uri.parse(notebookContext.uri));
-
-		// Build the notebook context node
-		const notebookNodes = [
-			xml.node('current-cell', currentCellText, {
-				description: 'The cell where inline chat was triggered',
-				index: currentCell.index,
-				type: currentCell.type,
-			}),
-			xml.node('context-cells', contextCellsText, {
-				description: `Context window: cells ${startIndex} to ${endIndex - 1} of ${totalCells - 1}`,
-				windowSize: contextCells.length,
-				totalCells: totalCells,
-			}),
-		];
-
-		const notebookNode = xml.node('notebook', notebookNodes.join('\n'), {
-			description: 'Notebook context for inline chat',
-			notebookPath,
-			kernelLanguage: notebookContext.kernelLanguage || 'unknown',
-			currentCellIndex: currentIndex,
-		});
-
-		log.debug(`[notebook participant] Adding notebook context: ${notebookNode.length} characters, ${contextCells.length} cells in window`);
-		return notebookNode;
+	/**
+	 * Returns empty string to prevent the parent EditorParticipant from adding
+	 * cell content as if it were a standalone file. Notebook cells should be
+	 * presented as part of the notebook context (handled in defaultRequestHandler),
+	 * not as individual documents with selection/diagnostics.
+	 */
+	override async getCustomPrompt(_request: vscode.ChatRequest): Promise<string> {
+		return '';
 	}
 }
 

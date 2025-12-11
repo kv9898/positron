@@ -26,6 +26,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { SettingsEditor2Input } from '../../../services/preferences/common/preferencesEditorInput.js';
 import { NotebookOutputEditorInput } from '../../../contrib/notebook/browser/outputEditor/notebookOutputEditorInput.js';
+import { IsAuxiliaryWindowContext, IsCompactTitleBarContext } from '../../../common/contextkeys.js';
 
 /**
  * Constants.
@@ -186,7 +187,8 @@ export class EditorActionBarControlFactory {
 		private readonly _container: HTMLElement,
 		private readonly _editorGroup: IEditorGroupView,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		// Update the enablement for the active editor.
 		this.updateEnablementForEditorInput(this._editorGroup.activeEditor);
@@ -225,6 +227,14 @@ export class EditorActionBarControlFactory {
 	private updateEnablementForEditorInput(editorInput: EditorInput | undefined | null) {
 		// If there isn't an active editor, disable the editor action bar and return.
 		if (!editorInput) {
+			this.updateEnablement(false);
+			return;
+		}
+
+		// Auxiliary windows in compact mode always disable the editor action bar.
+		const isAuxiliaryWindow = IsAuxiliaryWindowContext.getValue(this._contextKeyService);
+		const isCompact = IsCompactTitleBarContext.getValue(this._contextKeyService);
+		if (isAuxiliaryWindow && isCompact) {
 			this.updateEnablement(false);
 			return;
 		}

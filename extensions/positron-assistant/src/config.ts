@@ -7,10 +7,11 @@ import * as positron from 'positron';
 import { randomUUID } from 'crypto';
 import { getLanguageModels } from './models';
 import { completionModels } from './completion';
-import { clearTokenUsage, disposeModels, log, registerModel } from './extension';
+import { clearTokenUsage, disposeModels, getAutoconfiguredModels, log, registerModel } from './extension';
 import { CopilotService } from './copilot.js';
 import { PositronAssistantApi } from './api.js';
 import { PositLanguageModel } from './posit.js';
+import { DEFAULT_MAX_CONNECTION_ATTEMPTS } from './constants.js';
 
 export interface StoredModelConfig extends Omit<positron.ai.LanguageModelConfig, 'apiKey'> {
 	id: string;
@@ -132,39 +133,71 @@ export async function getEnabledProviders(): Promise<string[]> {
 	return enabledProviders;
 }
 
+export function getProviderTimeoutMs(): number {
+	const cfg = vscode.workspace.getConfiguration('positron.assistant');
+	const timeoutSec = cfg.get<number>('providerTimeout', 60);
+	return timeoutSec * 1000;
+}
+
+export function getMaxConnectionAttempts(): number {
+	const cfg = vscode.workspace.getConfiguration('positron.assistant');
+	const maxAttempts = cfg.get<number>('maxConnectionAttempts', DEFAULT_MAX_CONNECTION_ATTEMPTS);
+	if (maxAttempts < 1) {
+		log.warn(`Invalid maxConnectionAttempts value: ${maxAttempts}. Using default of ${DEFAULT_MAX_CONNECTION_ATTEMPTS}.`);
+		return DEFAULT_MAX_CONNECTION_ATTEMPTS;
+	}
+	return maxAttempts;
+}
+
 export async function showConfigurationDialog(context: vscode.ExtensionContext, storage: SecretStorage) {
 
 	// Gather model sources; ignore disabled providers
 	const enabledProviders = await getEnabledProviders();
+	// Models in persistent storage
 	const registeredModels = context.globalState.get<Array<StoredModelConfig>>('positron.assistant.models');
-	const sources = [...getLanguageModels(), ...completionModels]
+	// Auto-configured models (e.g., env var based or managed credentials) stored in memory
+	const autoconfiguredModels = getAutoconfiguredModels();
+	const sources: positron.ai.LanguageModelSource[] = [...getLanguageModels(), ...completionModels]
 		.map((provider) => {
-			const isRegistered = registeredModels?.find((modelConfig) => modelConfig.provider === provider.source.provider.id);
-			return {
+			// Get model data from `registeredModels` (for manually configured models; stored in persistent storage)
+			// or `autoconfiguredModels` (for auto-configured models; e.g., env var based or managed credentials)
+			const isRegistered = registeredModels?.find((modelConfig) => modelConfig.provider === provider.source.provider.id) || autoconfiguredModels.find((modelConfig) => modelConfig.provider === provider.source.provider.id);
+			// Update source data with actual model configuration status if found
+			// Otherwise, use defaults from provider
+			const source: positron.ai.LanguageModelSource = {
 				...provider.source,
 				signedIn: !!isRegistered,
 				defaults: isRegistered
 					? { ...provider.source.defaults, ...isRegistered }
 					: provider.source.defaults
 			};
+			return source;
 		})
 		.filter((source) => {
 			// If no specific set of providers was specified, include all
 			return enabledProviders.length === 0 || enabledProviders.includes(source.provider.id);
 		})
 		.map((source) => {
-			// Resolve environment variables in apiKeyEnvVar
-			if ('apiKeyEnvVar' in source.defaults && source.defaults.apiKeyEnvVar) {
-				const envVarName = (source.defaults as any).apiKeyEnvVar.key;
-				const envVarValue = process.env[envVarName];
+			// Handle autoconfigurable providers
+			if ('autoconfigure' in source.defaults && source.defaults.autoconfigure) {
+				// Resolve environment variables
+				if (source.defaults.autoconfigure.type === positron.ai.LanguageModelAutoconfigureType.EnvVariable) {
+					const envVarName = source.defaults.autoconfigure.key;
+					const envVarValue = process.env[envVarName];
 
-				return {
-					...source,
-					defaults: {
-						...source.defaults,
-						apiKeyEnvVar: { key: envVarName, signedIn: !!envVarValue }
-					},
-				};
+					return {
+						...source,
+						defaults: {
+							...source.defaults,
+							autoconfigure: { type: positron.ai.LanguageModelAutoconfigureType.EnvVariable, key: envVarName, signedIn: !!envVarValue }
+						},
+					};
+				} else if (source.defaults.autoconfigure.type === positron.ai.LanguageModelAutoconfigureType.Custom) {
+					// No special handling for custom autoconfiguration at this time
+					// The custom autoconfiguration logic should handle everything
+					// and is retrieved from `autoconfiguredModels` above
+					return source;
+				}
 			}
 			return source;
 		});
@@ -235,15 +268,16 @@ async function saveModel(userConfig: positron.ai.LanguageModelConfig, sources: p
 		...otherConfig,
 	};
 
-	// Update global state
-	await context.globalState.update(
-		'positron.assistant.models',
-		[...existingConfigs, newConfig]
-	);
 
 	// Register the new model FIRST, before saving configuration
 	try {
 		await registerModel(newConfig, context, storage);
+
+		// Update global state
+		await context.globalState.update(
+			'positron.assistant.models',
+			[...existingConfigs, newConfig]
+		);
 
 		positron.ai.addLanguageModelConfig(expandConfigToSource(newConfig));
 
