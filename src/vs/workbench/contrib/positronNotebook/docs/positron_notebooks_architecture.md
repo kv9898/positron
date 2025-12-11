@@ -58,7 +58,8 @@ Core design principles:
 
 The contribution file registers editors only when the feature flag is enabled. Key responsibilities include:
 
-- Registering the Positron notebook editor as an optional handler for `.ipynb` resources and notebook cell URIs.
+- Dynamically registering the Positron notebook editor for all contributed notebook types (e.g., `.ipynb`, `.qmd`, etc.) and their corresponding cell URIs.
+- Listening for new notebook types contributed by extensions and automatically registering them with the Positron notebook editor.
 - Providing support for untitled notebooks.
 - Registering a working copy handler for backup restoration and an editor serializer for hot-exit scenarios.
 - Installing notebook-level and cell-level commands, including execution controls, selection navigation, and markdown toggles.
@@ -199,10 +200,76 @@ npx playwright test --project e2e-electron --grep "@:positron-notebooks" --repor
 
 ## Current Status and Considerations
 
-- The feature flag defaults to off. Enabling it requires a restart because contributions register during workbench startup.
-- Positron Notebooks supports the Jupyter notebook format (`.ipynb`). Diffing delegates to VS Code's built-in diff editor.
+- The feature flag defaults to on (`positron.notebook.enabled: true`). Disabling it requires a restart because contributions register during workbench startup.
+- **Extension API for Custom Notebook Types**: Positron Notebooks now automatically supports any notebook type contributed by extensions through the standard VS Code `notebooks` contribution point in `package.json`. Extensions can register custom notebook serializers for formats like `.qmd` (Quarto), `.rmd` (R Markdown), or any other notebook format, and Positron Notebooks will automatically become available as an optional editor for those files.
 - Untitled notebooks are fully supported through the resolver and working copy handler.
-- **Extension compatibility**: Kernel-level extensions continue to work due to shared kernel APIs, but DOM-dependent notebook extensions will not integrate with the React-based UI.
+- **Extension compatibility**: Kernel-level extensions continue to work due to shared kernel APIs, but DOM-dependent notebook extensions will not integrate with the React-based UI. Extensions that contribute new notebook types (file formats) via the `notebooks` contribution point will work seamlessly with Positron Notebooks.
 - **Performance**: Large notebooks currently render all cells. Virtualization and range rendering are potential future optimizations.
 - **Rich outputs**: Rich output rendering depends on the preload service and webview coordination. Widget providers must cooperate with the webview lifecycle management.
 - **Testing**: Coverage spans configuration, resolver behavior, and core flows. New features should include corresponding unit and end-to-end tests.
+
+## Extension Development: Adding Custom Notebook Types
+
+Extensions can add support for custom notebook file formats (like `.qmd` for Quarto) to Positron Notebooks by:
+
+1. **Contributing a notebook type** in the extension's `package.json`:
+```json
+{
+  "contributes": {
+    "notebooks": [
+      {
+        "type": "quarto-notebook",
+        "displayName": "Quarto Notebook",
+        "selector": [
+          {
+            "filenamePattern": "*.qmd"
+          }
+        ],
+        "priority": "default"
+      }
+    ]
+  }
+}
+```
+
+2. **Registering a notebook serializer** in the extension's activation code:
+```typescript
+import * as vscode from 'vscode';
+
+export function activate(context: vscode.ExtensionContext) {
+  context.subscriptions.push(
+    vscode.workspace.registerNotebookSerializer(
+      'quarto-notebook',
+      new QuartoNotebookSerializer(),
+      {
+        transientOutputs: false
+      }
+    )
+  );
+}
+
+class QuartoNotebookSerializer implements vscode.NotebookSerializer {
+  async deserializeNotebook(
+    content: Uint8Array,
+    token: vscode.CancellationToken
+  ): Promise<vscode.NotebookData> {
+    // Parse the QMD file and convert to NotebookData format
+    // ...
+  }
+
+  async serializeNotebook(
+    data: vscode.NotebookData,
+    token: vscode.CancellationToken
+  ): Promise<Uint8Array> {
+    // Convert NotebookData back to QMD format
+    // ...
+  }
+}
+```
+
+Once an extension contributes a notebook type, Positron Notebooks automatically:
+- Registers as an optional editor for that file pattern
+- Becomes available in the "Open With..." menu
+- Can be set as the default editor via `workbench.editorAssociations`
+
+No modifications to Positron's core codebase are required to add support for new notebook file formats.

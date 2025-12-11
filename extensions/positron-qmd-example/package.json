@@ -1,0 +1,47 @@
+{
+	"name": "positron-qmd-example",
+	"displayName": "Positron QMD Example",
+	"description": "Example extension showing how to add QMD notebook support to Positron",
+	"version": "0.0.1",
+	"publisher": "positron",
+	"private": true,
+	"license": "MIT",
+	"engines": {
+		"vscode": "^1.65.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"activationEvents": [
+		"onNotebook:quarto-notebook"
+	],
+	"main": "./out/extension.js",
+	"contributes": {
+		"notebooks": [
+			{
+				"type": "quarto-notebook",
+				"displayName": "Quarto Notebook",
+				"selector": [
+					{
+						"filenamePattern": "*.qmd"
+					}
+				],
+				"priority": "default"
+			}
+		]
+	},
+	"scripts": {
+		"vscode:prepublish": "npm run compile",
+		"compile": "tsc -p ./",
+		"watch": "tsc -watch -p ./",
+		"lint": "eslint src --ext ts"
+	},
+	"devDependencies": {
+		"@types/node": "14.x",
+		"@types/vscode": "^1.65.0",
+		"@typescript-eslint/eslint-plugin": "^5.12.1",
+		"@typescript-eslint/parser": "^5.12.1",
+		"eslint": "^8.9.0",
+		"typescript": "^4.5.5"
+	}
+}
