@@ -1,0 +1,56 @@
+---
+title: "Example Quarto Notebook"
+author: "Positron User"
+format: html
+---
+
+## Introduction
+
+This is an example Quarto (QMD) notebook file that can be opened in Positron using the QMD notebooks extension.
+
+## R Code Example
+
+```{r}
+# Create a simple plot
+x <- 1:10
+y <- x^2
+plot(x, y, main="Quadratic Function", type="b")
+```
+
+## Python Code Example
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Generate data
+x = np.linspace(0, 10, 100)
+y = np.sin(x)
+
+# Create plot
+plt.figure(figsize=(10, 6))
+plt.plot(x, y)
+plt.title("Sine Wave")
+plt.xlabel("x")
+plt.ylabel("sin(x)")
+plt.grid(True)
+plt.show()
+```
+
+## Markdown Content
+
+You can include **bold**, *italic*, and `code` formatting.
+
+- Bullet points work
+- As expected
+
+### Code with Options
+
+```{r, echo=FALSE}
+# This code block has options
+summary(mtcars)
+```
+
+## Conclusion
+
+This demonstrates how a QMD file can be used as a notebook in Positron!
