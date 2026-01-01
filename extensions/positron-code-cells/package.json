@@ -9,6 +9,9 @@
     "vscode": "^1.65.0"
   },
   "categories": [],
+  "enabledApiProposals": [
+    "editorInsets"
+  ],
   "activationEvents": [
     "onStartupFinished"
   ],
@@ -207,6 +210,11 @@
           "type": "string",
           "default": "# COMMAND ----------",
           "markdownDescription": "%positron.codeCells.configuration.additionalCellDelimiter%"
+        },
+        "codeCells.inlineOutput": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%positron.codeCells.configuration.inlineOutput%"
         }
       }
     }

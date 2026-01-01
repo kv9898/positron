@@ -17,5 +17,6 @@
 	"positron.codeCells.configuration.cellStyle.border": "Highlight the active cell's border.",
 	"positron.codeCells.configuration.cellStyle.background": "Highlight the active cell's background.",
 	"positron.codeCells.configuration.cellStyle.both": "Highlight the active cell's border and background.",
-	"positron.codeCells.configuration.additionalCellDelimiter": "Additional text that marks the start of a new cell (e.g., for Databricks notebooks)"
+	"positron.codeCells.configuration.additionalCellDelimiter": "Additional text that marks the start of a new cell (e.g., for Databricks notebooks)",
+	"positron.codeCells.configuration.inlineOutput": "Display execution output inline under code cells instead of in the console."
 }

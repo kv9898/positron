@@ -7,12 +7,60 @@ import * as positron from 'positron';
 import * as vscode from 'vscode';
 import { type Cell, type CellParser, getParser } from './parser';
 import { canHaveCells, getOrCreateDocumentManager } from './documentManager';
+import { type CellOutput, getInlineOutputManager } from './inlineOutput';
+
+import { trace } from './logging';
 
 export interface ExecuteCode {
-	(language: string, code: string): Promise<void>;
+	(language: string, code: string, cell?: Cell, editor?: vscode.TextEditor): Promise<void>;
 }
-const defaultExecuteCode: ExecuteCode = async (language, code) => {
-	await positron.runtime.executeCode(language, code, false, true);
+
+const defaultExecuteCode: ExecuteCode = async (language, code, cell, editor) => {
+	const inlineOutputManager = getInlineOutputManager();
+
+	if (inlineOutputManager.isEnabled() && cell && editor) {
+		// Collect output for inline display
+		const output: CellOutput = {
+			textOutput: [],
+			errorOutput: [],
+			plots: [],
+			success: true,
+		};
+
+		const observer: positron.runtime.ExecutionObserver = {
+			onOutput: (message: string) => {
+				output.textOutput.push(message);
+			},
+			onError: (message: string) => {
+				output.errorOutput.push(message);
+			},
+			onPlot: (plotData: string) => { // currently we don't get anything out of here at all
+				output.plots.push(plotData);
+			},
+			onFailed: (error: Error) => {
+				output.success = false;
+				output.error = error.message;
+			},
+			onFinished: () => {
+				// Display output inline after execution completes
+				inlineOutputManager.displayOutput(editor, cell.range.end.line, output);
+				trace(`Code cell executed with inline output: ${JSON.stringify(output)}`); // for debugging
+			},
+		};
+
+		await positron.runtime.executeCode(
+			language,
+			code,
+			false,
+			true,
+			undefined,
+			undefined,
+			observer
+		);
+	} else {
+		// Default behavior: output goes to console
+		await positron.runtime.executeCode(language, code, false, true);
+	}
 };
 
 // Handles execution of cells via editor
@@ -76,7 +124,7 @@ export class CodeCellManager {
 	private runCell(cell: Cell): void {
 		if (!this.parser) { return; }
 		const text = this.parser.getCellText(cell, this.editor.document);
-		this.executeCode(this.editor.document.languageId, text);
+		this.executeCode(this.editor.document.languageId, text, cell, this.editor);
 	}
 
 	// Public commands
