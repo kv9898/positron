@@ -9,6 +9,8 @@ import { type Cell, type CellParser, getParser } from './parser';
 import { canHaveCells, getOrCreateDocumentManager } from './documentManager';
 import { type CellOutput, getInlineOutputManager } from './inlineOutput';
 
+import { trace } from './logging';
+
 export interface ExecuteCode {
 	(language: string, code: string, cell?: Cell, editor?: vscode.TextEditor): Promise<void>;
 }
@@ -32,7 +34,7 @@ const defaultExecuteCode: ExecuteCode = async (language, code, cell, editor) => 
 			onError: (message: string) => {
 				output.errorOutput.push(message);
 			},
-			onPlot: (plotData: string) => {
+			onPlot: (plotData: string) => { // currently we don't get anything out of here at all
 				output.plots.push(plotData);
 			},
 			onFailed: (error: Error) => {
@@ -42,6 +44,7 @@ const defaultExecuteCode: ExecuteCode = async (language, code, cell, editor) => 
 			onFinished: () => {
 				// Display output inline after execution completes
 				inlineOutputManager.displayOutput(editor, cell.range.end.line, output);
+				trace(`Code cell executed with inline output: ${JSON.stringify(output)}`); // for debugging
 			},
 		};
 
