@@ -64,6 +64,12 @@ const pythonMarkdownRegExp = new RegExp(/^#\s*%%[^[]*\[markdown\]/);
 const rIsCellStartRegExp = new RegExp(/^#\s*(%%|\+)/);
 const rIsSectionHeaderRegExp = new RegExp(/^#+.*[-=]{4,}\s*$/);
 
+// Quarto/RMarkdown code fence patterns
+// Matches ```{r} or ```{python} or similar
+const qmdCodeFenceStartRegExp = new RegExp(/^```+\{([a-zA-Z]+).*\}\s*$/);
+// Matches closing ```
+const qmdCodeFenceEndRegExp = new RegExp(/^```+\s*$/);
+
 function getAdditionalCellDelimiter(): string {
 	return vscode.workspace.getConfiguration('codeCells').get('additionalCellDelimiter', '# COMMAND ----------');
 }
@@ -88,9 +94,22 @@ const rCellParser: CellParser = {
 	newCell: () => '\n# %%\n'
 };
 
+// Quarto/RMarkdown parser for .qmd and .rmd files
+// These files use ```{language} fenced code blocks
+const qmdCellParser: CellParser = {
+	isCellStart: (line) => qmdCodeFenceStartRegExp.test(line),
+	isCellEnd: (line) => qmdCodeFenceEndRegExp.test(line),
+	getCellType: (_line) => CellType.Code,
+	getCellText: getCellText,
+	newCell: () => '\n```{r}\n\n```\n'
+};
+
 export const parsers: Map<string, CellParser> = new Map([
 	['python', pythonCellParser],
 	['r', rCellParser],
+	['quarto', qmdCellParser],
+	['rmd', qmdCellParser],
+	['markdown', qmdCellParser], // .qmd/.rmd files might be opened with markdown language
 ]);
 export const supportedLanguageIds = Array.from(parsers.keys());
 

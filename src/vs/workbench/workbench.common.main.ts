@@ -313,6 +313,7 @@ import './contrib/positronPlotsEditor/browser/positronPlotsEditor.contribution.j
 import './contrib/positronPlotsGalleryEditor/browser/positronPlotsGalleryEditor.contribution.js';
 import './contrib/positronOutputWebview/browser/notebookOutputWebview.contribution.js';
 import './contrib/positronNotebook/browser/positronNotebook.contribution.js';
+import './contrib/positronInlineOutput/browser/positronInlineOutput.contribution.js';
 import './contrib/positronWelcome/browser/positronWelcome.contribution.js';
 // --- End Positron ---
 
