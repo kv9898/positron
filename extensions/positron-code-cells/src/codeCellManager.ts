@@ -35,9 +35,6 @@ const defaultExecuteCode: ExecuteCode = async (language, code, cell, editor) => 
 			onPlot: (plotData: string) => {
 				output.plots.push(plotData);
 			},
-			onCompleted: () => {
-				output.success = true;
-			},
 			onFailed: (error: Error) => {
 				output.success = false;
 				output.error = error.message;

@@ -6,6 +6,11 @@
 import * as vscode from 'vscode';
 import { trace } from './logging';
 
+/** Estimated number of editor lines per plot for height calculation */
+const LINES_PER_PLOT = 10;
+/** Maximum number of lines for inline output display */
+const MAX_OUTPUT_LINES = 20;
+
 /**
  * Represents the collected output from a cell execution.
  */
@@ -159,16 +164,16 @@ export class InlineOutputManager implements vscode.Disposable {
 			lines += error.split('\n').length;
 		}
 
-		// Add space for plots (estimate 10 lines per plot)
-		lines += output.plots.length * 10;
+		// Add space for plots
+		lines += output.plots.length * LINES_PER_PLOT;
 
 		// Add error message if present
 		if (output.error) {
 			lines += output.error.split('\n').length;
 		}
 
-		// Minimum 1, maximum 20 lines
-		return Math.min(Math.max(lines, 0), 20);
+		// Clamp to valid range
+		return Math.min(Math.max(lines, 0), MAX_OUTPUT_LINES);
 	}
 
 	private generateOutputHtml(output: CellOutput): string {
@@ -219,8 +224,8 @@ export class InlineOutputManager implements vscode.Disposable {
 
 		// Plots
 		for (const plot of output.plots) {
-			// Determine image type from data or default to PNG
-			const mimeType = plot.startsWith('/9j/') ? 'image/jpeg' : 'image/png';
+			// Determine image type from base64 data using magic bytes
+			const mimeType = this.detectImageMimeType(plot);
 			parts.push(`<div><img class="plot" src="data:${mimeType};base64,${plot}" /></div>`);
 		}
 
@@ -248,6 +253,38 @@ export class InlineOutputManager implements vscode.Disposable {
 			.replace(/>/g, '&gt;')
 			.replace(/"/g, '&quot;')
 			.replace(/'/g, '&#039;');
+	}
+
+	/**
+	 * Detect image MIME type from base64-encoded data using magic bytes.
+	 * Returns the detected MIME type, defaulting to PNG if unknown.
+	 */
+	private detectImageMimeType(base64Data: string): string {
+		// Check first few characters of base64 data for known image signatures
+		// PNG: starts with 'iVBORw0KGgo' (base64 of \x89PNG\r\n\x1a\n)
+		// JPEG: starts with '/9j/' (base64 of \xFF\xD8\xFF)
+		// GIF: starts with 'R0lGOD' (base64 of GIF89a or GIF87a)
+		// WebP: starts with 'UklGR' (base64 of RIFF)
+		// SVG: starts with 'PD94bW' (base64 of <?xml) or 'PHN2Zz' (base64 of <svg)
+
+		if (base64Data.startsWith('iVBORw0KGgo')) {
+			return 'image/png';
+		}
+		if (base64Data.startsWith('/9j/')) {
+			return 'image/jpeg';
+		}
+		if (base64Data.startsWith('R0lGOD')) {
+			return 'image/gif';
+		}
+		if (base64Data.startsWith('UklGR')) {
+			return 'image/webp';
+		}
+		if (base64Data.startsWith('PD94bW') || base64Data.startsWith('PHN2Zz')) {
+			return 'image/svg+xml';
+		}
+
+		// Default to PNG for unknown formats
+		return 'image/png';
 	}
 
 	public dispose(): void {
