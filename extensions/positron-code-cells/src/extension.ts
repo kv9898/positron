@@ -10,6 +10,7 @@ import { activateDecorations } from './decorations';
 import { activateContextKeys } from './context';
 import { activateDocumentManagers } from './documentManager';
 import { registerCommands } from './commands';
+import { activateInlineOutput } from './inlineOutput';
 
 export const IGNORED_SCHEMES = ['vscode-notebook-cell', 'vscode-interactive-input'];
 
@@ -43,4 +44,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 	// Adds `positron.hasCodeCells` to when clause for keybindings
 	activateContextKeys(context.subscriptions);
+
+	// Adds inline output display for code cells
+	activateInlineOutput(context.subscriptions);
 }
