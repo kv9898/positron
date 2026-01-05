@@ -236,12 +236,13 @@ const createInterpreterGroups = (
 			preferredRuntime = runtimeAffiliationService.getPreferredRuntime(languageId);
 			if (preferredRuntime) {
 				preferredRuntimeByLanguageId.set(languageId, preferredRuntime);
+			} else {
+				// If there's no preferred runtime, use the current runtime as the primary runtime.
+				// This ensures that all registered runtimes are shown in the picker, even if
+				// there's no affiliated or previously started runtime for the language.
+				preferredRuntime = runtime;
+				preferredRuntimeByLanguageId.set(languageId, preferredRuntime);
 			}
-		}
-
-		// If we didn't find a preferred runtime, skip this one.
-		if (!preferredRuntime) {
-			continue;
 		}
 
 		// Create the language runtime group if it doesn't exist.
