@@ -364,10 +364,17 @@ export class RuntimeStartupService extends Disposable implements IRuntimeStartup
 					this._logService.debug(`[Runtime startup] No language packs were found.`);
 					this.setStartupPhase(RuntimeStartupPhase.Complete);
 				}
-			} else if (this._startupPhase === RuntimeStartupPhase.Initializing && this._languagePacks.size > 0) {
-				// If we just got language packs, and we were in the Initializing
-				// phase, move on to the startup phase.
-				this.startupAfterTrust();
+			} else if (this._startupPhase === RuntimeStartupPhase.Initializing) {
+				if (this._languagePacks.size > 0) {
+					// If we just got language packs, and we were in the Initializing
+					// phase, move on to the startup phase.
+					this.startupAfterTrust();
+				} else {
+					// If no language packs were found, mark startup as complete
+					// to prevent hanging in the Initializing phase forever.
+					this._logService.debug(`[Runtime startup] No language packs were found during initialization.`);
+					this.setStartupPhase(RuntimeStartupPhase.Complete);
+				}
 			}
 		}));
 
