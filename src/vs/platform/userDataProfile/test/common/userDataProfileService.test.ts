@@ -350,4 +350,28 @@ suite('UserDataProfileService (Common)', () => {
 		assert.deepStrictEqual(testObject.profiles[3].id, profile2.id);
 	});
 
+	test('create profile with description', async () => {
+		const profile = await testObject.createProfile('id', 'name', { description: 'Test description' });
+		assert.deepStrictEqual(profile.description, 'Test description');
+		assert.deepStrictEqual(testObject.profiles[1].description, 'Test description');
+	});
+
+	test('update profile description', async () => {
+		let profile = await testObject.createProfile('id', 'name');
+		assert.deepStrictEqual(profile.description, undefined);
+
+		profile = await testObject.updateProfile(profile, { description: 'Updated description' });
+		assert.deepStrictEqual(profile.description, 'Updated description');
+
+		profile = await testObject.updateProfile(profile, { description: null });
+		assert.deepStrictEqual(profile.description, undefined);
+	});
+
+	test('profile description is persisted', async () => {
+		const profile = await testObject.createProfile('id', 'name', { description: 'Persisted description' });
+		const storedProfiles = (testObject as any).getStoredProfiles();
+		const storedProfile = storedProfiles.find((p: any) => p.name === 'name');
+		assert.strictEqual(storedProfile.description, 'Persisted description');
+	});
+
 });
