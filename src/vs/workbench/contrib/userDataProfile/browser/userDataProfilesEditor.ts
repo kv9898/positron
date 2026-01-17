@@ -548,6 +548,7 @@ class ProfileWidget extends Disposable {
 			delegate,
 			[
 				this._register(this.instantiationService.createInstance(ProfileNameRenderer)),
+				this._register(this.instantiationService.createInstance(ProfileDescriptionRenderer)),
 				this._register(this.instantiationService.createInstance(ProfileIconRenderer)),
 				this._register(this.instantiationService.createInstance(UseForCurrentWindowPropertyRenderer)),
 				this._register(this.instantiationService.createInstance(UseAsDefaultProfileRenderer)),
@@ -703,7 +704,7 @@ class ProfileWidget extends Disposable {
 
 }
 
-type ProfileProperty = 'name' | 'icon' | 'copyFrom' | 'useForCurrent' | 'useAsDefault' | 'contents' | 'workspaces';
+type ProfileProperty = 'name' | 'icon' | 'description' | 'copyFrom' | 'useForCurrent' | 'useAsDefault' | 'contents' | 'workspaces';
 
 interface ProfileTreeElement {
 	element: ProfileProperty;
@@ -751,11 +752,13 @@ class ProfileTreeDataSource implements IAsyncDataSource<AbstractUserDataProfileE
 			if (element instanceof NewProfileElement) {
 				children.push({ element: 'name', root: element });
 				children.push({ element: 'icon', root: element });
+				children.push({ element: 'description', root: element });
 				children.push({ element: 'copyFrom', root: element });
 				children.push({ element: 'contents', root: element });
 			} else if (element instanceof UserDataProfileElement) {
 				if (!element.profile.isDefault) {
 					children.push({ element: 'name', root: element });
+					children.push({ element: 'description', root: element });
 					children.push({ element: 'icon', root: element });
 				}
 				children.push({ element: 'useAsDefault', root: element });
@@ -1002,6 +1005,72 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 					}
 					if (e.profile) {
 						nameInput.validate();
+					}
+				}));
+			},
+			disposables,
+			elementDisposables
+		};
+	}
+
+}
+
+class ProfileDescriptionRenderer extends ProfilePropertyRenderer {
+
+	readonly templateId: ProfileProperty = 'description';
+
+	constructor(
+		@IContextViewService private readonly contextViewService: IContextViewService,
+	) {
+		super();
+	}
+
+	renderTemplate(parent: HTMLElement): IProfilePropertyRendererTemplate {
+		const disposables = new DisposableStore();
+		const elementDisposables = disposables.add(new DisposableStore());
+		let profileElement: ProfileTreeElement | undefined;
+
+		const descriptionContainer = append(parent, $('.profile-row-container'));
+		append(descriptionContainer, $('.profile-label-element', undefined, localize('description', "Description")));
+		const descriptionInput = disposables.add(new InputBox(
+			descriptionContainer,
+			this.contextViewService,
+			{
+				inputBoxStyles: getInputBoxStyle({
+					inputBorder: settingsTextInputBorder
+				}),
+				ariaLabel: localize('profileDescription', "Profile Description"),
+				placeholder: localize('profileDescriptionPlaceholder', "Optional profile description")
+			}
+		));
+		disposables.add(descriptionInput.onDidChange(value => {
+			if (profileElement) {
+				profileElement.root.description = value || undefined;
+			}
+		}));
+
+		const renderDescription = (profileElement: ProfileTreeElement) => {
+			descriptionInput.value = profileElement.root.description ?? '';
+			const isDefaultProfile = profileElement.root instanceof UserDataProfileElement && profileElement.root.profile.isDefault;
+			if (profileElement.root.disabled || isDefaultProfile) {
+				descriptionInput.disable();
+			} else {
+				descriptionInput.enable();
+			}
+			if (isDefaultProfile) {
+				descriptionInput.setTooltip(localize('defaultProfileDescription', "Description cannot be changed for the default profile"));
+			} else {
+				descriptionInput.setTooltip(localize('profileDescription', "Profile Description"));
+			}
+		};
+
+		return {
+			set element(element: ProfileTreeElement) {
+				profileElement = element;
+				renderDescription(profileElement);
+				elementDisposables.add(profileElement.root.onDidChange(e => {
+					if (e.description || e.disabled) {
+						renderDescription(element);
 					}
 				}));
 			},

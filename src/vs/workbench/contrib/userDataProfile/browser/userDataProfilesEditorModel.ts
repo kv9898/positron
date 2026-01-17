@@ -51,6 +51,7 @@ import { areSameExtensions } from '../../../../platform/extensionManagement/comm
 export type ChangeEvent = {
 	readonly name?: boolean;
 	readonly icon?: boolean;
+	readonly description?: boolean;
 	readonly flags?: boolean;
 	readonly workspaces?: boolean;
 	readonly active?: boolean;
@@ -166,6 +167,16 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		if (this._icon !== icon) {
 			this._icon = icon;
 			this._onDidChange.fire({ icon: true });
+		}
+	}
+
+	private _description: string | undefined;
+	get description(): string | undefined { return this._description; }
+	set description(description: string | undefined) {
+		const trimmedDescription = description?.trim();
+		if (this._description !== trimmedDescription) {
+			this._description = trimmedDescription;
+			this._onDidChange.fire({ description: true });
 		}
 	}
 
@@ -393,6 +404,7 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		return await this.userDataProfileManagementService.updateProfile(profile, {
 			name: this.name,
 			icon: this.icon,
+			description: this.description,
 			useDefaultFlags: profile.useDefaultFlags && !useDefaultFlags ? {} : useDefaultFlags,
 			workspaces: this.workspaces
 		});
@@ -472,6 +484,7 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 	reset(): void {
 		this.name = this._profile.name;
 		this.icon = this._profile.icon;
+		this.description = this._profile.description;
 		this.flags = this._profile.useDefaultFlags;
 		this.workspaces = this._profile.workspaces;
 	}
@@ -681,6 +694,9 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 					if (this.defaultIcon === this.icon) {
 						this.icon = this.defaultIcon = this.template.icon;
 					}
+					if (!this.description) {
+						this.description = this.template.description;
+					}
 					this.setCopyFlag(ProfileResourceType.Settings, !!this.template.settings);
 					this.setCopyFlag(ProfileResourceType.Keybindings, !!this.template.keybindings);
 					this.setCopyFlag(ProfileResourceType.Tasks, !!this.template.tasks);
@@ -698,6 +714,9 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 				}
 				if (this.defaultIcon === this.icon) {
 					this.icon = this.defaultIcon = this.copyFrom.icon;
+				}
+				if (!this.description) {
+					this.description = this.copyFrom.description;
 				}
 				this.setCopyFlag(ProfileResourceType.Settings, true);
 				this.setCopyFlag(ProfileResourceType.Keybindings, true);
@@ -1210,7 +1229,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				}
 			}
 			else {
-				const { flags, icon, name, copyFrom } = this.newProfileElement;
+				const { flags, icon, description, name, copyFrom } = this.newProfileElement;
 				const useDefaultFlags: UseDefaultProfileFlags | undefined = flags
 					? flags.settings && flags.keybindings && flags.tasks && flags.globalState && flags.extensions ? undefined : flags
 					: undefined;
@@ -1235,6 +1254,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 								name,
 								useDefaultFlags,
 								icon,
+								description,
 								resourceTypeFlags: this.newProfileElement.copyFlags,
 								transient
 							},
@@ -1248,13 +1268,14 @@ export class UserDataProfilesEditorModel extends EditorModel {
 							name,
 							useDefaultFlags,
 							icon: icon,
+							description,
 							resourceTypeFlags: this.newProfileElement.copyFlags,
 							transient
 						},
 						token ?? CancellationToken.None
 					);
 				} else {
-					profile = await this.userDataProfileManagementService.createProfile(name, { useDefaultFlags, icon, transient });
+					profile = await this.userDataProfileManagementService.createProfile(name, { useDefaultFlags, icon, description, transient });
 				}
 			}
 		} finally {
