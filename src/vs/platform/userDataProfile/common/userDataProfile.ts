@@ -43,6 +43,7 @@ export interface IUserDataProfile {
 	readonly isDefault: boolean;
 	readonly name: string;
 	readonly icon?: string;
+	readonly description?: string;
 	readonly location: URI;
 	readonly globalStorageHome: URI;
 	readonly settingsResource: URI;
@@ -91,6 +92,7 @@ export type WillRemoveProfileEvent = {
 
 export interface IUserDataProfileOptions {
 	readonly icon?: string;
+	readonly description?: string;
 	readonly useDefaultFlags?: UseDefaultProfileFlags;
 	readonly transient?: boolean;
 	readonly workspaces?: readonly URI[];
@@ -99,6 +101,7 @@ export interface IUserDataProfileOptions {
 export interface IUserDataProfileUpdateOptions extends Omit<IUserDataProfileOptions, 'icon'> {
 	readonly name?: string;
 	readonly icon?: string | null;
+	readonly description?: string | null;
 }
 
 export const IUserDataProfilesService = createDecorator<IUserDataProfilesService>('IUserDataProfilesService');
@@ -132,6 +135,7 @@ export function reviveProfile(profile: UriDto<IUserDataProfile>, scheme: string)
 		isDefault: profile.isDefault,
 		name: profile.name,
 		icon: profile.icon,
+		description: profile.description,
 		location: URI.revive(profile.location).with({ scheme }),
 		globalStorageHome: URI.revive(profile.globalStorageHome).with({ scheme }),
 		settingsResource: URI.revive(profile.settingsResource).with({ scheme }),
@@ -155,6 +159,7 @@ export function toUserDataProfile(id: string, name: string, location: URI, profi
 		location,
 		isDefault: false,
 		icon: options?.icon,
+		description: options?.description,
 		globalStorageHome: defaultProfile && options?.useDefaultFlags?.globalState ? defaultProfile.globalStorageHome : joinPath(location, 'globalStorage'),
 		settingsResource: defaultProfile && options?.useDefaultFlags?.settings ? defaultProfile.settingsResource : joinPath(location, 'settings.json'),
 		keybindingsResource: defaultProfile && options?.useDefaultFlags?.keybindings ? defaultProfile.keybindingsResource : joinPath(location, 'keybindings.json'),
@@ -179,6 +184,7 @@ export type StoredUserDataProfile = {
 	name: string;
 	location: URI;
 	icon?: string;
+	description?: string;
 	useDefaultFlags?: UseDefaultProfileFlags;
 };
 
@@ -245,7 +251,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 						this.logService.warn('Skipping the invalid stored profile', storedProfile.location || storedProfile.name);
 						continue;
 					}
-					profiles.push(toUserDataProfile(basename(storedProfile.location), storedProfile.name, storedProfile.location, this.profilesCacheHome, { icon: storedProfile.icon, useDefaultFlags: storedProfile.useDefaultFlags }, defaultProfile));
+					profiles.push(toUserDataProfile(basename(storedProfile.location), storedProfile.name, storedProfile.location, this.profilesCacheHome, { icon: storedProfile.icon, description: storedProfile.description, useDefaultFlags: storedProfile.useDefaultFlags }, defaultProfile));
 				}
 			} catch (error) {
 				this.logService.error(error);
@@ -363,6 +369,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 				if (!existing.isDefault) {
 					profileToUpdate = toUserDataProfile(existing.id, options.name ?? existing.name, existing.location, this.profilesCacheHome, {
 						icon: options.icon === null ? undefined : options.icon ?? existing.icon,
+						description: options.description === null ? undefined : options.description ?? existing.description,
 						transient: options.transient ?? existing.isTransient,
 						useDefaultFlags: options.useDefaultFlags ?? existing.useDefaultFlags,
 						workspaces: options.workspaces ?? existing.workspaces,
@@ -609,7 +616,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 				continue;
 			}
 			if (!profile.isDefault) {
-				storedProfiles.push({ location: profile.location, name: profile.name, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags });
+				storedProfiles.push({ location: profile.location, name: profile.name, icon: profile.icon, description: profile.description, useDefaultFlags: profile.useDefaultFlags });
 			}
 			if (profile.workspaces) {
 				for (const workspace of profile.workspaces) {
