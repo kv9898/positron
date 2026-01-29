@@ -11,6 +11,7 @@ import * as path from 'path';
 import { ParticipantService } from './participants.js';
 import { API as GitAPI, GitExtension, Repository, Status, Change } from '../../git/src/api/git.js';
 import { MARKDOWN_DIR } from './constants';
+import { matchesModelFilter } from './modelFilters.js';
 
 const generatingGitCommitKey = 'positron-assistant.generatingCommitMessage';
 
@@ -184,6 +185,81 @@ export async function generateCommitMessage(
 	}
 }
 
+/**
+ * Reorder models for commit message generation based on configured preferences.
+ * Models are reordered (not filtered) so all models remain available.
+ * @param models - The models to reorder
+ * @param providerId - Optional provider ID to use provider-specific patterns
+ */
+function reorderModelsForCommitGeneration(models: vscode.LanguageModelChat[], providerId?: string): vscode.LanguageModelChat[] {
+	if (models.length <= 1) {
+		return models;
+	}
+
+	// Get configuration
+	const config = vscode.workspace.getConfiguration('positron.assistant');
+	const preferences = config.get<{
+		encouraged?: string[];
+		discouraged?: string[];
+		byProvider?: Record<string, { encouraged?: string[]; discouraged?: string[] }>;
+	}>('commitMessage.modelPreference', {
+		encouraged: ['mini'],
+		discouraged: ['codex']
+	});
+
+	// Use provider-specific patterns if available, otherwise use default patterns
+	const providerPrefs = (providerId && preferences.byProvider) ? preferences.byProvider[providerId] : undefined;
+	const encouragedPatterns = providerPrefs?.encouraged ?? preferences.encouraged ?? [];
+	const discouragedPatterns = providerPrefs?.discouraged ?? preferences.discouraged ?? [];
+
+	// If no patterns configured, return original order
+	if (encouragedPatterns.length === 0 && discouragedPatterns.length === 0) {
+		return models;
+	}
+
+	// Score each model based on pattern matching
+	const scoredModels = models.map(model => {
+		let score = 0;
+
+		// Check encouraged patterns (lower index = higher priority = higher score)
+		for (let i = 0; i < encouragedPatterns.length; i++) {
+			if (matchesModelFilter(encouragedPatterns[i], model.id, model.name)) {
+				// First pattern gets highest score
+				score = 1000 + (encouragedPatterns.length - i);
+				break;
+			}
+		}
+
+		// Check discouraged patterns (higher index = lower priority = lower score)
+		if (score === 0) {
+			for (let i = 0; i < discouragedPatterns.length; i++) {
+				if (matchesModelFilter(discouragedPatterns[i], model.id, model.name)) {
+					// Last pattern gets lowest score
+					score = -(discouragedPatterns.length - i);
+					break;
+				}
+			}
+		}
+
+		return { model, score };
+	});
+
+	// Sort by score (descending), keeping original order for same scores
+	scoredModels.sort((a, b) => {
+		if (b.score !== a.score) {
+			return b.score - a.score;
+		}
+		// Maintain original order for models with same score
+		return models.indexOf(a.model) - models.indexOf(b.model);
+	});
+
+	// Separate test/error models and place them at the end
+	const nonTestModels = scoredModels.filter(({ model }) => model.family !== 'echo' && model.family !== 'error');
+	const testModels = scoredModels.filter(({ model }) => model.family === 'echo' || model.family === 'error');
+
+	return [...nonTestModels.map(({ model }) => model), ...testModels.map(({ model }) => model)];
+}
+
 async function getModel(participantService: ParticipantService): Promise<vscode.LanguageModelChat> {
 	// Check for the latest chat session and use its model.
 	const sessionModelId = participantService.getCurrentSessionModel();
@@ -198,7 +274,10 @@ async function getModel(participantService: ParticipantService): Promise<vscode.
 	const currentProvider = await positron.ai.getCurrentProvider();
 	if (currentProvider) {
 		const models = await vscode.lm.selectChatModels({ vendor: currentProvider.id });
-		return models[0];
+		const reordered = reorderModelsForCommitGeneration(models, currentProvider.id);
+		if (reordered.length > 0) {
+			return reordered[0];
+		}
 	}
 
 	// Fall back to the first available model from any provider.
@@ -206,5 +285,6 @@ async function getModel(participantService: ParticipantService): Promise<vscode.
 	if (models.length === 0) {
 		throw new Error('No language models available for git commit message generation');
 	}
-	return models.filter((model) => model.family !== 'echo' && model.family !== 'error')[0];
+	const reordered = reorderModelsForCommitGeneration(models);
+	return reordered[0];
 }
