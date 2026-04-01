@@ -685,6 +685,11 @@
 			"positron.authentication",
 			"positron.positron-assistant",
 			"posit.assistant"
+		],
+		"snowflake-cortex": [
+			"positron.authentication",
+			"positron.positron-assistant",
+			"posit.assistant"
 		]
 	}
 }
