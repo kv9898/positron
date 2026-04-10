@@ -117,6 +117,26 @@ export interface IPositronConsoleService {
 	initialize(): void;
 
 	/**
+	 * Reveals the find widget in the active console instance.
+	 */
+	revealFindWidget(): void;
+
+	/**
+	 * Hides the find widget in the active console instance.
+	 */
+	hideFindWidget(): void;
+
+	/**
+	 * Navigates to the next find match in the active console instance.
+	 */
+	findNext(): void;
+
+	/**
+	 * Navigates to the previous find match in the active console instance.
+	 */
+	findPrevious(): void;
+
+	/**
 	 * Gets the current console input width, in characters.
 	 */
 	getConsoleWidth(): number;
@@ -209,6 +229,32 @@ export type DidNavigateInputHistoryUpEventArgs = {
 };
 
 /**
+ * IConsoleFindWidget interface. Abstracts the find widget so the service layer
+ * can own its lifecycle without depending on the concrete implementation.
+ */
+export interface IConsoleFindWidget extends IDisposable {
+	reveal(initialInput?: string): void;
+	hide(): void;
+	find(previous: boolean): void;
+	refreshSearch(): void;
+	layout(width: number): void;
+	getDomNode(): HTMLElement;
+	readonly onDidHide: Event<void>;
+}
+
+// Create the decorator for the console find widget factory (used in dependency injection).
+export const IConsoleFindWidgetFactory = createDecorator<IConsoleFindWidgetFactory>('consoleFindWidgetFactory');
+
+/**
+ * IConsoleFindWidgetFactory interface. Allows the service layer to create
+ * find widgets without depending on the concrete implementation.
+ */
+export interface IConsoleFindWidgetFactory {
+	readonly _serviceBrand: undefined;
+	createFindWidget(): IConsoleFindWidget;
+}
+
+/**
  * IPositronConsoleInstance interface.
  */
 export interface IPositronConsoleInstance {
@@ -272,11 +318,6 @@ export interface IPositronConsoleInstance {
 	 */
 	lastScrollTop: number;
 
-	/**
-	 * Adds disposables that should be cleaned up when this instance is disposed.
-	 * @param disposables The disposables to add.
-	 */
-	addDisposables(disposables: IDisposable): void;
 
 	/**
 	 * The onFocusInput event.
@@ -374,6 +415,43 @@ export interface IPositronConsoleInstance {
 	 * Focuses the input for the console.
 	 */
 	focusInput(): void;
+
+	/**
+	 * Gets the find widget's DOM node for insertion into the console container.
+	 * Returns undefined if no find widget has been set.
+	 */
+	readonly findWidgetDomNode: HTMLElement | undefined;
+
+	/**
+	 * Layouts the find widget to the given width.
+	 */
+	layoutFindWidget(width: number): void;
+
+	/**
+	 * Requests that the find widget be revealed.
+	 */
+	requestFind(): void;
+
+	/**
+	 * Requests that the find widget be hidden.
+	 */
+	requestHideFind(): void;
+
+	/**
+	 * Requests navigation to the next find match.
+	 */
+	requestFindNext(): void;
+
+	/**
+	 * Requests navigation to the previous find match.
+	 */
+	requestFindPrevious(): void;
+
+	/**
+	 * Re-applies find highlights. Called when the console tab becomes active
+	 * to reclaim the global CSS Custom Highlight API entries.
+	 */
+	refreshFindHighlights(): void;
 
 	/**
 	 * Tells the console its current console input width, in characters. Fires
