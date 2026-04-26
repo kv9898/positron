@@ -6,6 +6,7 @@ node_modules/
 .build/
 .vscode/extensions/**/out/
 extensions/**/dist/
+.intent-engine/
 # --- Start Positron ---
 # Positron maintains a custom codicon.ttf that includes Positron-specific icons.
 # Do not gitignore it (upstream does because they copy from the npm package).
