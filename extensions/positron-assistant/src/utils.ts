@@ -111,6 +111,10 @@ export function toAIMessage(
 					// Convert PromptTSX parts to text
 					const text = promptTsxPartToString(part);
 					content.push({ type: 'text', text });
+				} else if (vscode.LanguageModelThinkingPart && part instanceof vscode.LanguageModelThinkingPart) {
+					// Skip thinking parts - OpenAI-compatible providers don't support them.
+					// The thinking content was already processed and displayed to the user.
+					log.debug(`[vercel] Skipping thinking part in assistant message`);
 				} else {
 					// Skip unknown parts.
 					log.warn(`[vercel] Skipping unsupported part type in assistant message: ${part.constructor.name}`);

@@ -418,6 +418,9 @@ function toAnthropicAssistantMessage(message: vscode.LanguageModelChatMessage2, 
 			content.push(toAnthropicToolUseBlock(part, source, dataPart));
 		} else if (part instanceof vscode.LanguageModelDataPart) {
 			// Skip extra data parts. They're handled in part conversion.
+		} else if (vscode.LanguageModelThinkingPart && part instanceof vscode.LanguageModelThinkingPart) {
+			// Skip thinking parts - Anthropic doesn't support them in input messages.
+			// The thinking content was already processed and displayed to the user.
 		} else {
 			throw new Error('[Anthropic] Unsupported part type on assistant message');
 		}
@@ -448,6 +451,9 @@ function toAnthropicUserMessage(message: vscode.LanguageModelChatMessage2, sourc
 					log.debug(`Skipping unsupported part in user message: ${JSON.stringify(part, null, 2)}`);
 				}
 			}
+		} else if (vscode.LanguageModelThinkingPart && part instanceof vscode.LanguageModelThinkingPart) {
+			// Skip thinking parts - Anthropic doesn't support them in input messages.
+			// The thinking content was already processed and displayed to the user.
 		} else {
 			throw new Error(`[Anthropic] Unsupported part type on user message: ${JSON.stringify(part, null, 2)}`);
 		}
