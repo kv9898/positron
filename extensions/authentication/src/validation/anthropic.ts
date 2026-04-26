@@ -75,6 +75,12 @@ export async function validateAnthropicApiKey(apiKey: string, config: positron.a
 			throw new ApiKeyValidationError(vscode.l10n.t('Invalid Anthropic API key'));
 		}
 
+		// Custom endpoints may not implement /v1/models or may use different response formats
+		// Treat as validation success - the actual connection test will verify the key works
+		if (config.baseUrl) {
+			return;
+		}
+
 		throw new ApiKeyValidationError(vscode.l10n.t(
 			'Unable to validate Anthropic API key (HTTP {0})',
 			String(response.status)
