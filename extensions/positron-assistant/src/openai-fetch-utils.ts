@@ -160,7 +160,7 @@ function isChatCompletionChunk(obj: unknown): obj is PossiblyBrokenChatCompletio
  * 2. Response transformations (empty role fields -> "assistant")
  */
 export function createOpenAICompatibleFetch(providerName: string, apiKey?: string): (input: RequestInfo, init?: RequestInit) => Promise<Response> {
-	const reasoningContentByAssistantContent = new Map<string, string>();
+	const reasoningContentCache = new Map<string, string>();
 
 	return async (input: RequestInfo, init?: RequestInit): Promise<Response> => {
 		log.debug(`[${providerName}] [DEBUG] Making request to: ${input}`);
@@ -170,7 +170,7 @@ export function createOpenAICompatibleFetch(providerName: string, apiKey?: strin
 		// Transform the request body if needed
 		const transformedInit = transformRequestBody(init, providerName, (tools) => {
 			noArgTools = tools;
-		}, reasoningContentByAssistantContent);
+		}, reasoningContentCache);
 
 		// Strip the Authorization header when the API key is explicitly
 		// blank so unauthenticated endpoints don't receive a bare Bearer
@@ -186,7 +186,7 @@ export function createOpenAICompatibleFetch(providerName: string, apiKey?: strin
 		log.debug(`[${providerName}] [DEBUG] Response status: ${response.status} ${response.statusText}`);
 
 		// Handle response transformations for streaming responses
-		return transformStreamingResponse(response, providerName, noArgTools, reasoningContentByAssistantContent);
+		return transformStreamingResponse(response, providerName, noArgTools, reasoningContentCache);
 	};
 }
 
@@ -199,7 +199,7 @@ function transformRequestBody(
 	init: RequestInit | undefined,
 	providerName: string,
 	onNoArgToolsFound?: (noArgTools: string[]) => void,
-	reasoningContentByAssistantContent?: Map<string, string>
+	reasoningContentCache?: Map<string, string>
 ): RequestInit | undefined {
 	if (!init?.body || typeof init.body !== 'string') {
 		return init;
@@ -235,8 +235,8 @@ function transformRequestBody(
 				}
 			}
 
-			if (reasoningContentByAssistantContent) {
-				replayReasoningContent(requestBody.messages, reasoningContentByAssistantContent, providerName);
+			if (reasoningContentCache) {
+				replayReasoningContent(requestBody.messages, reasoningContentCache, providerName);
 			}
 		}
 
@@ -286,7 +286,7 @@ function transformStreamingResponse(
 	response: Response,
 	providerName: string,
 	noArgTools: string[] = [],
-	reasoningContentByAssistantContent?: Map<string, string>
+	reasoningContentCache?: Map<string, string>
 ): Response {
 	// Only process streaming responses
 	const contentType = response.headers.get('content-type');
@@ -308,8 +308,8 @@ function transformStreamingResponse(
 		}
 		const contentKey = assistantContent.trim();
 		const reasoningValue = reasoningContent.trim();
-		if (contentKey && reasoningValue && reasoningContentByAssistantContent) {
-			reasoningContentByAssistantContent.set(contentKey, reasoningValue);
+		if (contentKey && reasoningValue && reasoningContentCache) {
+			reasoningContentCache.set(contentKey, reasoningValue);
 			log.trace(`[${providerName}] Stored reasoning_content for assistant content replay`);
 			storedReasoningContent = true;
 		}
@@ -331,6 +331,7 @@ function transformStreamingResponse(
 							reasoningContent += delta.reasoning_content;
 						}
 					},
+					// Some providers include an explicit finish_reason, others rely on [DONE].
 					() => storeReasoningContent(),
 					() => storeReasoningContent()
 				);
@@ -369,15 +370,13 @@ function transformServerSentEvents(
 				// Check if it's a possibly broken chunk and fix it
 				// Otherwise, keep the original line
 				if (isChatCompletionChunk(data)) {
-					for (const choice of data.choices) {
-						if (choice.delta) {
-							onDelta?.(choice.delta);
-						}
+					const fixedChunk = fixPossiblyBrokenChatCompletionChunk(data, noArgTools, providerName);
+					for (const choice of fixedChunk.choices) {
+						onDelta?.(choice.delta as { content?: unknown; reasoning_content?: unknown });
 						if (choice.finish_reason) {
 							onFinishReason?.();
 						}
 					}
-					const fixedChunk = fixPossiblyBrokenChatCompletionChunk(data, noArgTools, providerName);
 					transformedLines.push(`data: ${JSON.stringify(fixedChunk)}`);
 				} else {
 					transformedLines.push(line);
@@ -402,7 +401,7 @@ function transformServerSentEvents(
 
 function replayReasoningContent(
 	messages: unknown[],
-	reasoningContentByAssistantContent: Map<string, string>,
+	reasoningContentCache: Map<string, string>,
 	providerName: string
 ): void {
 	for (const message of messages) {
@@ -420,11 +419,12 @@ function replayReasoningContent(
 		}
 
 		if (typeof messageObj.reasoning_content === 'string' && messageObj.reasoning_content.trim()) {
-			reasoningContentByAssistantContent.set(contentKey, messageObj.reasoning_content);
+			// If reasoning content is already present, keep cache synchronized.
+			reasoningContentCache.set(contentKey, messageObj.reasoning_content);
 			continue;
 		}
 
-		const cachedReasoningContent = reasoningContentByAssistantContent.get(contentKey);
+		const cachedReasoningContent = reasoningContentCache.get(contentKey);
 		if (cachedReasoningContent) {
 			messageObj.reasoning_content = cachedReasoningContent;
 			log.trace(`[${providerName}] Replayed cached reasoning_content into assistant history message`);
@@ -434,8 +434,7 @@ function replayReasoningContent(
 
 function getAssistantContentKey(content: unknown): string | undefined {
 	if (typeof content === 'string') {
-		const trimmedContent = content.trim();
-		return trimmedContent || undefined;
+		return content.trim() || undefined;
 	}
 	if (!Array.isArray(content)) {
 		return undefined;
