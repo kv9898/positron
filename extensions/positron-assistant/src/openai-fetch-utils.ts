@@ -372,7 +372,9 @@ function transformServerSentEvents(
 				if (isChatCompletionChunk(data)) {
 					const fixedChunk = fixPossiblyBrokenChatCompletionChunk(data, noArgTools, providerName);
 					for (const choice of fixedChunk.choices) {
-						onDelta?.(choice.delta as { content?: unknown; reasoning_content?: unknown });
+						if (choice.delta) {
+							onDelta?.(choice.delta as { content?: unknown; reasoning_content?: unknown });
+						}
 						if (choice.finish_reason) {
 							onFinishReason?.();
 						}
@@ -419,8 +421,7 @@ function replayReasoningContent(
 		}
 
 		if (typeof messageObj.reasoning_content === 'string' && messageObj.reasoning_content.trim()) {
-			// If reasoning content is already present, keep cache synchronized.
-			reasoningContentCache.set(contentKey, messageObj.reasoning_content);
+			// History message already includes reasoning content; no replay needed.
 			continue;
 		}
 
