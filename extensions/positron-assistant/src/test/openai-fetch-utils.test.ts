@@ -150,3 +150,79 @@ suite('createOpenAICompatibleFetch auth header handling', () => {
 			'Authorization header should be preserved when apiKey is undefined');
 	});
 });
+
+suite('createOpenAICompatibleFetch DeepSeek reasoning_content replay', () => {
+	let originalFetch: typeof globalThis.fetch;
+
+	setup(() => {
+		originalFetch = globalThis.fetch;
+	});
+
+	teardown(() => {
+		globalThis.fetch = originalFetch;
+	});
+
+	test('replays cached reasoning_content into assistant history messages', async () => {
+		const requestBodies: Array<Record<string, unknown> | undefined> = [];
+		let requestCount = 0;
+
+		globalThis.fetch = async (_input: RequestInfo | URL, init?: RequestInit) => {
+			const requestBody = init?.body && typeof init.body === 'string' ? JSON.parse(init.body) : undefined;
+			requestBodies.push(requestBody);
+			requestCount += 1;
+
+			if (requestCount === 1) {
+				const responseText = [
+					'data: {"id":"chatcmpl-1","object":"chat.completion.chunk","created":1,"model":"deepseek-reasoner","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":"Let me reason.","content":"Hello"},"finish_reason":null}]}',
+					'',
+					'data: {"id":"chatcmpl-1","object":"chat.completion.chunk","created":1,"model":"deepseek-reasoner","choices":[{"index":0,"delta":{"reasoning_content":" Continue.","content":" world"},"finish_reason":"stop"}]}',
+					'',
+					'data: [DONE]',
+					''
+				].join('\n');
+				return new Response(responseText, {
+					status: 200,
+					headers: { 'content-type': 'text/event-stream' }
+				});
+			}
+
+			return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
+		};
+
+		const customFetch = createOpenAICompatibleFetch('DeepSeek Test');
+
+		const firstResponse = await customFetch('https://example.com/v1/chat/completions', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				model: 'deepseek-reasoner',
+				messages: [{ role: 'user', content: 'Say hello' }],
+				stream: true
+			})
+		});
+		await firstResponse.text();
+
+		await customFetch('https://example.com/v1/chat/completions', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				model: 'deepseek-reasoner',
+				messages: [
+					{ role: 'assistant', content: 'Hello world' },
+					{ role: 'user', content: 'Continue' }
+				],
+				stream: true
+			})
+		});
+
+		assert.strictEqual(requestBodies.length, 2, 'Expected two requests');
+		const secondRequest = requestBodies[1];
+		assert.ok(secondRequest, 'Expected second request body');
+		const secondMessages = secondRequest.messages as Array<Record<string, unknown>>;
+		assert.strictEqual(
+			secondMessages[0].reasoning_content,
+			'Let me reason. Continue.',
+			'Expected cached reasoning_content to be replayed for assistant history message'
+		);
+	});
+});

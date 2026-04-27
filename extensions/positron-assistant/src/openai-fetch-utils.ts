@@ -160,6 +160,8 @@ function isChatCompletionChunk(obj: unknown): obj is PossiblyBrokenChatCompletio
  * 2. Response transformations (empty role fields -> "assistant")
  */
 export function createOpenAICompatibleFetch(providerName: string, apiKey?: string): (input: RequestInfo, init?: RequestInit) => Promise<Response> {
+	const reasoningContentByAssistantContent = new Map<string, string>();
+
 	return async (input: RequestInfo, init?: RequestInit): Promise<Response> => {
 		log.debug(`[${providerName}] [DEBUG] Making request to: ${input}`);
 
@@ -168,7 +170,7 @@ export function createOpenAICompatibleFetch(providerName: string, apiKey?: strin
 		// Transform the request body if needed
 		const transformedInit = transformRequestBody(init, providerName, (tools) => {
 			noArgTools = tools;
-		});
+		}, reasoningContentByAssistantContent);
 
 		// Strip the Authorization header when the API key is explicitly
 		// blank so unauthenticated endpoints don't receive a bare Bearer
@@ -184,7 +186,7 @@ export function createOpenAICompatibleFetch(providerName: string, apiKey?: strin
 		log.debug(`[${providerName}] [DEBUG] Response status: ${response.status} ${response.statusText}`);
 
 		// Handle response transformations for streaming responses
-		return transformStreamingResponse(response, providerName, noArgTools);
+		return transformStreamingResponse(response, providerName, noArgTools, reasoningContentByAssistantContent);
 	};
 }
 
@@ -193,7 +195,12 @@ export function createOpenAICompatibleFetch(providerName: string, apiKey?: strin
  * Specifically, converts max_tokens to max_completion_tokens for providers like Snowflake
  * that require the newer parameter name.
  */
-function transformRequestBody(init: RequestInit | undefined, providerName: string, onNoArgToolsFound?: (noArgTools: string[]) => void): RequestInit | undefined {
+function transformRequestBody(
+	init: RequestInit | undefined,
+	providerName: string,
+	onNoArgToolsFound?: (noArgTools: string[]) => void,
+	reasoningContentByAssistantContent?: Map<string, string>
+): RequestInit | undefined {
 	if (!init?.body || typeof init.body !== 'string') {
 		return init;
 	}
@@ -226,6 +233,10 @@ function transformRequestBody(init: RequestInit | undefined, providerName: strin
 					log.trace(`[${providerName}] Converting 'developer' role to 'system' for compatibility`);
 					message.role = 'system';
 				}
+			}
+
+			if (reasoningContentByAssistantContent) {
+				replayReasoningContent(requestBody.messages, reasoningContentByAssistantContent, providerName);
 			}
 		}
 
@@ -271,7 +282,12 @@ function transformRequestBody(init: RequestInit | undefined, providerName: strin
 /**
  * Transforms streaming responses to fix OpenAI-compatible provider issues
  */
-function transformStreamingResponse(response: Response, providerName: string, noArgTools: string[] = []): Response {
+function transformStreamingResponse(
+	response: Response,
+	providerName: string,
+	noArgTools: string[] = [],
+	reasoningContentByAssistantContent?: Map<string, string>
+): Response {
 	// Only process streaming responses
 	const contentType = response.headers.get('content-type');
 	if (!contentType?.includes('text/event-stream')) {
@@ -282,11 +298,42 @@ function transformStreamingResponse(response: Response, providerName: string, no
 	// return empty role fields, but the AI SDK expects "assistant".
 	// Example error message without this fix:
 	// [Snowflake Cortex] [GPT-5]' Error in chat response: { "name": "AI_TypeValidationError", "cause": { "issues": [ { "code": "invalid_union", "unionErrors": [ { "issues": [ { "received": "", "code": "invalid_enum_value", "options": [ "assistant" ], "path": [ "choices", 0, "delta", "role" ], "message": "Invalid enum value. Expected 'assistant', received ''" } ], "name": "ZodError" }, { "issues": [ { "code": "invalid_type", "expected": "object", "received": "undefined", "path": [ "error" ], "message": "Required" } ], "name": "ZodError" } ], "path": [], "message": "Invalid input" } ], "name": "ZodError" }, "value": { "choices": [ { "delta": { "content": "Hi", "refusal": "", "role": "", "tool_calls": null }, "index": 0, "logprobs": { "content": null, "refusal": null } } ], "created": 1763996710, "id": "chatcmpl-CfSPmojQUpCNSwEMdoKfgxjEF9rnS", "model": "openai-gpt-5", "object": "chat.completion.chunk", "service_tier": "", "system_fingerprint": "" } }
+	let assistantContent = '';
+	let reasoningContent = '';
+	let storedReasoningContent = false;
+
+	const storeReasoningContent = () => {
+		if (storedReasoningContent) {
+			return;
+		}
+		const contentKey = assistantContent.trim();
+		const reasoningValue = reasoningContent.trim();
+		if (contentKey && reasoningValue && reasoningContentByAssistantContent) {
+			reasoningContentByAssistantContent.set(contentKey, reasoningValue);
+			log.trace(`[${providerName}] Stored reasoning_content for assistant content replay`);
+			storedReasoningContent = true;
+		}
+	};
+
 	const transformedStream = response.body?.pipeThrough(
 		new TransformStream({
 			transform(chunk, controller) {
 				const text = new TextDecoder().decode(chunk);
-				const transformedText = transformServerSentEvents(text, providerName, noArgTools);
+				const transformedText = transformServerSentEvents(
+					text,
+					providerName,
+					noArgTools,
+					(delta) => {
+						if (typeof delta.content === 'string') {
+							assistantContent += delta.content;
+						}
+						if (typeof delta.reasoning_content === 'string') {
+							reasoningContent += delta.reasoning_content;
+						}
+					},
+					() => storeReasoningContent(),
+					() => storeReasoningContent()
+				);
 				controller.enqueue(new TextEncoder().encode(transformedText));
 			}
 		})
@@ -302,7 +349,14 @@ function transformStreamingResponse(response: Response, providerName: string, no
 /**
  * Transforms Server-Sent Events text by properly parsing JSON and fixing ChatCompletionChunks
  */
-function transformServerSentEvents(text: string, providerName: string, noArgTools: string[] = []): string {
+function transformServerSentEvents(
+	text: string,
+	providerName: string,
+	noArgTools: string[] = [],
+	onDelta?: (delta: { content?: unknown; reasoning_content?: unknown }) => void,
+	onDone?: () => void,
+	onFinishReason?: () => void
+): string {
 	const lines = text.split('\n');
 	const transformedLines: string[] = [];
 
@@ -315,6 +369,14 @@ function transformServerSentEvents(text: string, providerName: string, noArgTool
 				// Check if it's a possibly broken chunk and fix it
 				// Otherwise, keep the original line
 				if (isChatCompletionChunk(data)) {
+					for (const choice of data.choices) {
+						if (choice.delta) {
+							onDelta?.(choice.delta);
+						}
+						if (choice.finish_reason) {
+							onFinishReason?.();
+						}
+					}
 					const fixedChunk = fixPossiblyBrokenChatCompletionChunk(data, noArgTools, providerName);
 					transformedLines.push(`data: ${JSON.stringify(fixedChunk)}`);
 				} else {
@@ -327,10 +389,69 @@ function transformServerSentEvents(text: string, providerName: string, noArgTool
 				transformedLines.push(line);
 			}
 		} else {
+			if (line.trim() === 'data: [DONE]') {
+				onDone?.();
+			}
 			// Keep non-data lines as-is (empty lines, comments, [DONE], etc.)
 			transformedLines.push(line);
 		}
 	}
 
 	return transformedLines.join('\n');
+}
+
+function replayReasoningContent(
+	messages: unknown[],
+	reasoningContentByAssistantContent: Map<string, string>,
+	providerName: string
+): void {
+	for (const message of messages) {
+		if (typeof message !== 'object' || message === null) {
+			continue;
+		}
+		const messageObj = message as { role?: unknown; content?: unknown; reasoning_content?: unknown };
+		if (messageObj.role !== 'assistant') {
+			continue;
+		}
+
+		const contentKey = getAssistantContentKey(messageObj.content);
+		if (!contentKey) {
+			continue;
+		}
+
+		if (typeof messageObj.reasoning_content === 'string' && messageObj.reasoning_content.trim()) {
+			reasoningContentByAssistantContent.set(contentKey, messageObj.reasoning_content);
+			continue;
+		}
+
+		const cachedReasoningContent = reasoningContentByAssistantContent.get(contentKey);
+		if (cachedReasoningContent) {
+			messageObj.reasoning_content = cachedReasoningContent;
+			log.trace(`[${providerName}] Replayed cached reasoning_content into assistant history message`);
+		}
+	}
+}
+
+function getAssistantContentKey(content: unknown): string | undefined {
+	if (typeof content === 'string') {
+		const trimmedContent = content.trim();
+		return trimmedContent || undefined;
+	}
+	if (!Array.isArray(content)) {
+		return undefined;
+	}
+
+	const textChunks: string[] = [];
+	for (const part of content) {
+		if (typeof part !== 'object' || part === null) {
+			continue;
+		}
+		const typedPart = part as { type?: unknown; text?: unknown };
+		if (typedPart.type === 'text' && typeof typedPart.text === 'string') {
+			textChunks.push(typedPart.text);
+		}
+	}
+
+	const combinedText = textChunks.join('').trim();
+	return combinedText || undefined;
 }
