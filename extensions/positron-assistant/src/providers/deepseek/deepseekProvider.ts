@@ -7,14 +7,11 @@ import * as positron from 'positron';
 import * as vscode from 'vscode';
 import Anthropic from '@anthropic-ai/sdk';
 import { ModelProvider } from '../base/modelProvider';
-import { getProviderTimeoutMs } from '../../providerConfig.js';
 import { ModelConfig } from '../../configTypes.js';
 import { isChatImagePart, isCacheBreakpointPart, parseCacheBreakpoint, processMessages, promptTsxPartToString } from '../../utils.js';
 import { DEFAULT_MAX_TOKEN_OUTPUT } from '../../constants.js';
 import { log } from '../../log.js';
 import { TokenUsage, recordTokenUsage, recordRequestTokenUsage } from '../../tokens.js';
-import { getAllModelDefinitions } from '../../modelDefinitions.js';
-import { createModelInfo, markDefaultModel } from '../../modelResolutionHelpers.js';
 import { LanguageModelDataPartMimeType } from '../../types.js';
 import { ModelProviderLogger } from '../base/modelProviderLogger.js';
 import { PROVIDER_METADATA } from '../../providerMetadata.js';
@@ -22,7 +19,6 @@ import {
 	DEFAULT_DEEPSEEK_MODEL_NAME,
 	DEFAULT_DEEPSEEK_MODEL_MATCH,
 	fetchDeepseekModelsFromApi,
-	getDeepseekModelsFromConfig
 } from './deepseekModelUtils.js';
 import { handleNativeSdkRateLimitError } from '../anthropic/anthropicModelUtils.js';
 
@@ -107,30 +103,15 @@ export class DeepseekModelProvider extends ModelProvider implements positron.ai.
 		if (this._config.baseUrl) {
 			return true;
 		}
-		return this._config.apiKey.startsWith('sk-ant-');
+		return this._config.apiKey.startsWith('sk-');
 	}
 
 	protected override getDefaultMatch(): string {
 		return DEFAULT_DEEPSEEK_MODEL_MATCH;
 	}
 
-	override async resolveConnection(token: vscode.CancellationToken) {
-		// Keep custom implementation for API-specific connection testing
-		const timeoutMs = getProviderTimeoutMs();
-		try {
-			await this._client.withOptions({ timeout: timeoutMs }).models.list();
-		} catch (error) {
-			// Custom endpoints may not expose /v1/models; treat 404 as connected
-			if (this._config.baseUrl && error instanceof Anthropic.APIError && error.status === 404) {
-				return;
-			}
-			return error as Error;
-		}
-	}
-
 	/**
-	 * Sends a test message to verify model connectivity.
-	 * Uses the native Anthropic SDK to test the connection.
+	 * Sends a test message to verify model connectivity using the Anthropic-compatible API.
 	 */
 	protected override async sendTestMessage(modelId: string) {
 		return this._client.messages.create({
@@ -140,18 +121,10 @@ export class DeepseekModelProvider extends ModelProvider implements positron.ai.
 		});
 	}
 
-	protected override retrieveModelsFromConfig() {
-		return getDeepseekModelsFromConfig(
-			this.providerId,
-			this.providerName,
-			this.capabilities,
-			this.logger
-		);
-	}
-
 	protected override async retrieveModelsFromApi(_token: vscode.CancellationToken) {
 		return fetchDeepseekModelsFromApi(
-			this._client,
+			this.baseUrl ?? 'https://api.deepseek.com/anthropic',
+			this._config.apiKey,
 			this.providerId,
 			this.providerName,
 			this.capabilities,
@@ -321,11 +294,46 @@ export class DeepseekModelProvider extends ModelProvider implements positron.ai.
 		switch (block.type) {
 			case 'tool_use':
 				return this.onToolUseBlock(block, progress);
+			case 'thinking':
+				return this.onThinkingBlock(block, progress);
+			case 'redacted_thinking':
+				return this.onRedactedThinkingBlock(block, progress);
 		}
 	}
 
 	private onToolUseBlock(block: Anthropic.ToolUseBlock, progress: vscode.Progress<vscode.LanguageModelResponsePart2>): void {
 		progress.report(new vscode.LanguageModelToolCallPart(block.id, block.name, block.input as any));
+	}
+
+	/**
+	 * Stores a thinking block as a data part in the progress stream.
+	 *
+	 * The full thinking block (including its `signature`) is persisted as a
+	 * `LanguageModelDataPart` so that VS Code includes it in the conversation
+	 * history.  On subsequent turns `toAnthropicAssistantMessage` picks it up
+	 * and passes it back to DeepSeek as a `ThinkingBlockParam`, which is
+	 * required by models that use thinking mode.
+	 */
+	private onThinkingBlock(block: Anthropic.ThinkingBlock, progress: vscode.Progress<vscode.LanguageModelResponsePart2>): void {
+		this.logger.trace(`Received thinking block (${block.thinking.length} chars)`);
+		progress.report(vscode.LanguageModelDataPart.json(
+			{ type: 'thinking', thinking: block.thinking, signature: block.signature },
+			LanguageModelDataPartMimeType.DeepseekThinking
+		));
+	}
+
+	/**
+	 * Stores a redacted thinking block as a data part in the progress stream.
+	 *
+	 * Same rationale as `onThinkingBlock` — the block must be passed back
+	 * verbatim to DeepSeek on follow-up turns.
+	 */
+	private onRedactedThinkingBlock(block: Anthropic.RedactedThinkingBlock, progress: vscode.Progress<vscode.LanguageModelResponsePart2>): void {
+		this.logger.trace('Received redacted_thinking block');
+		progress.report(vscode.LanguageModelDataPart.json(
+			{ type: 'redacted_thinking', data: block.data },
+			LanguageModelDataPartMimeType.DeepseekThinking
+		));
 	}
 
 	private onText(textDelta: string, progress: vscode.Progress<vscode.LanguageModelResponsePart2>): void {
@@ -414,15 +422,43 @@ function toAnthropicAssistantMessage(message: vscode.LanguageModelChatMessage2, 
 		} else if (part instanceof vscode.LanguageModelToolCallPart) {
 			content.push(toAnthropicToolUseBlock(part, source, dataPart));
 		} else if (part instanceof vscode.LanguageModelDataPart) {
-			// Skip extra data parts. They're handled in part conversion.
+			// Restore thinking blocks that were saved from a previous turn.
+			// All other data parts (e.g. usage, finishReason) are ephemeral and skipped.
+			if (part.mimeType === LanguageModelDataPartMimeType.DeepseekThinking) {
+				const thinkingBlock = parseDeepseekThinkingBlock(part);
+				if (thinkingBlock) {
+					content.push(thinkingBlock);
+				}
+			}
 		} else {
-			throw new Error('[Anthropic] Unsupported part type on assistant message');
+			throw new Error('[DeepSeek] Unsupported part type on assistant message');
 		}
 	}
 	return {
 		role: 'assistant',
 		content,
 	};
+}
+
+/**
+ * Parses a `LanguageModelDataPart` with MIME type `DeepseekThinking` back into
+ * the corresponding Anthropic block param so it can be forwarded to DeepSeek.
+ */
+function parseDeepseekThinkingBlock(
+	part: vscode.LanguageModelDataPart
+): Anthropic.ThinkingBlockParam | Anthropic.RedactedThinkingBlockParam | undefined {
+	try {
+		const json = JSON.parse(Buffer.from(part.data).toString('utf-8'));
+		if (json.type === 'thinking' && typeof json.thinking === 'string' && typeof json.signature === 'string') {
+			return { type: 'thinking', thinking: json.thinking, signature: json.signature };
+		}
+		if (json.type === 'redacted_thinking' && typeof json.data === 'string') {
+			return { type: 'redacted_thinking', data: json.data };
+		}
+	} catch {
+		// Ignore malformed data parts
+	}
+	return undefined;
 }
 
 function toAnthropicUserMessage(message: vscode.LanguageModelChatMessage2, source: string): Anthropic.MessageParam {

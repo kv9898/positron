@@ -37,6 +37,16 @@ export enum LanguageModelDataPartMimeType {
 	 * See: https://github.com/microsoft/vscode-copilot-chat/blob/6aeac371813be9037e74395186ec5b5b94089245/src/platform/endpoint/common/endpointTypes.ts#L7
 	 */
 	CacheControl = 'cache_control',
+
+	/**
+	 * Stores a DeepSeek thinking block (reasoning content) from a model response.
+	 *
+	 * DeepSeek's thinking mode returns `thinking` and `redacted_thinking` blocks that
+	 * must be passed back verbatim in multi-turn conversations. This MIME type is used
+	 * to persist those blocks in the conversation history as data parts so that the
+	 * DeepSeek provider can include them when constructing subsequent requests.
+	 */
+	DeepseekThinking = 'application/vnd.deepseek.thinking',
 }
 
 /**
