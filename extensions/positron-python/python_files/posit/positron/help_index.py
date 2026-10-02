@@ -433,7 +433,11 @@ class HelpIndex:
                 cached = self._package_indexes.get(package_paths)
                 if cached is None or self._changed(cached[1]):
                     discovery = Discovery()
-                    index = discovery.build(package_paths, builtins=())
+                    index = (
+                        discovery.build(package_paths, builtins=())
+                        if package_paths
+                        else Index((), ())
+                    )
                     self._package_indexes[package_paths] = (index, discovery.fingerprints)
                     self._index = None
             if self._index is None:
