@@ -11,6 +11,7 @@ import pydoc
 import sys
 import tempfile
 import unittest
+import warnings
 import zipfile
 from pathlib import Path
 from types import ModuleType
@@ -127,6 +128,18 @@ class DiscoveryTests(unittest.TestCase):
         path = self.write("encoded.py")
         path.write_bytes(b'# coding: latin-1\n("""Caf\xe9 summary.""")\n')
         assert self.scan().topics[0].summary == "Café summary."
+
+    def test_source_summary_does_not_leak_invalid_escape_warnings(self):
+        self.write("escaped.py", r'"""Summary with \_ markup."""' + "\n")
+        with warnings.catch_warnings(record=True) as captured:
+            warnings.simplefilter("always")
+            summaries = [self.scan().topics[0].summary for _ in range(2)]
+            # Indexing must also leave the user's warning policy intact.
+            warnings.warn("User warning", SyntaxWarning, stacklevel=1)
+        assert (summaries, [str(w.message) for w in captured]) == (
+            [r"Summary with \_ markup."] * 2,
+            ["User warning"],
+        )
 
     def test_bytecode_name_without_importing(self):
         source = self.write(

@@ -14,6 +14,7 @@ import io
 import os
 import sys
 import tokenize
+import warnings
 import zipfile
 from bisect import bisect_left
 from dataclasses import dataclass
@@ -355,7 +356,16 @@ def _source_summary(source: str) -> str | None:
             ):
                 parts.append(token.string)
             elif token.type == tokenize.NEWLINE:
-                value = ast.literal_eval("".join(parts))
+                # Reading installed documentation must not emit compiler warnings
+                # into the user's console. Older Python versions use DeprecationWarning.
+                with warnings.catch_warnings():
+                    warnings.filterwarnings(
+                        "ignore", message=".*invalid escape sequence", category=SyntaxWarning
+                    )
+                    warnings.filterwarnings(
+                        "ignore", message=".*invalid escape sequence", category=DeprecationWarning
+                    )
+                    value = ast.literal_eval("".join(parts))
                 return value.strip().split("\n")[0].strip() if isinstance(value, str) else None
             elif token.type not in (tokenize.COMMENT, tokenize.NL):
                 return None
