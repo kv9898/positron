@@ -273,9 +273,11 @@ class Discovery:
             return
         concrete = {}
         namespaces = {}
+        locations_complete = True
         for loc in locations:
             entries = self.entries(loc)
             if entries is None:
+                locations_complete = False
                 break
             files = self.module_files(entries, loc)
             directories = {
@@ -289,6 +291,7 @@ class Discovery:
                 child = loc.child(name) if name in directories else None
                 child_entries = self.entries(child) if child else {}
                 if child_entries is None:
+                    locations_complete = False
                     # Do not guess whether an unvisited directory is a package
                     # or namespace, or fall back to a same-named module.
                     break
@@ -317,6 +320,10 @@ class Discovery:
             if package:
                 self.package_paths[full] = (str(loc.path / loc.prefix),)
                 self.walk([loc], full + ".", topics, depth + 1)
+        # A later, unvisited location might contain a concrete package/module
+        # that shadows a namespace portion found earlier in the search path.
+        if not locations_complete:
+            return
         for name, portions in sorted(namespaces.items()):
             if name not in concrete and prefix + name not in topics:
                 full = prefix + name

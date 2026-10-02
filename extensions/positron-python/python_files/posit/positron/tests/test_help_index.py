@@ -202,6 +202,25 @@ class DiscoveryTests(unittest.TestCase):
         assert self.names(index) == ["a"]
         assert discovery.visited == 1
 
+    def test_location_budget_omits_namespace_with_unvisited_shadowing_root(self):
+        self.write("a/available.py")
+        self.write("a/pkg/hidden.py")
+        self.write("b/pkg/__init__.py")
+        self.write("b/pkg/visible.py")
+        discovery = Discovery(max_locations=2)
+        with self.assertLogs("positron.help_index", level="WARNING"):
+            index = discovery.build([self.root / "a", self.root / "b"], builtins=())
+        assert self.names(index) == ["available"]
+        assert discovery.visited == 2
+
+    def test_location_budget_retains_fully_classified_namespace(self):
+        self.write("space/unvisited.py")
+        discovery = Discovery(max_locations=2)
+        with self.assertLogs("positron.help_index", level="WARNING"):
+            index = discovery.build([self.root], builtins=())
+        assert [(topic.name, topic.kind) for topic in index.topics] == [("space", "namespace")]
+        assert discovery.visited == 2
+
     def test_zero_location_budget_retains_builtins_and_loaded_modules(self):
         runtime = ModuleType("runtime_only", "Runtime summary.")
         discovery = Discovery(max_locations=0)
