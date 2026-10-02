@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import ast
 import io
+import logging
 import os
 import sys
 import tokenize
@@ -22,6 +23,8 @@ from importlib.machinery import BYTECODE_SUFFIXES, EXTENSION_SUFFIXES, SOURCE_SU
 from pathlib import Path
 from threading import RLock
 from types import ModuleType
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -154,6 +157,7 @@ class Discovery:
         self.max_source_bytes = max_source_bytes
         self.diagnostics: list[str] = []
         self.visited = 0
+        self.budget_exhausted = False
         self.archives: dict[Path, zipfile.ZipFile] = {}
         self.zip_children: dict[Path, dict[str, dict[str, bool]]] = {}
         self.fingerprints: dict[Path, tuple | None] = {}
@@ -162,6 +166,7 @@ class Discovery:
     def build(self, paths, builtins=None, loaded: LoadedSnapshot | None = None) -> Index:
         self.diagnostics = []
         self.visited = 0
+        self.budget_exhausted = False
         topics = {}
         for name in sys.builtin_module_names if builtins is None else builtins:
             if name != "__main__":
@@ -226,9 +231,14 @@ class Discovery:
                     return None
         return None  # Nonexistent sys.path entries are normal.
 
-    def entries(self, loc: Location) -> dict[str, bool]:
+    def entries(self, loc: Location) -> dict[str, bool] | None:
         if self.visited >= self.max_locations:
-            raise RuntimeError("Discovery location budget exceeded; index is incomplete")
+            if not self.budget_exhausted:
+                diagnostic = "Discovery location budget exceeded; index is incomplete"
+                self.diagnostics.append(diagnostic)
+                logger.warning(diagnostic)
+                self.budget_exhausted = True
+            return None
         self.visited += 1
         if loc.archive:
             return self.zip_children[loc.path].get(loc.prefix, {})
@@ -265,6 +275,8 @@ class Discovery:
         namespaces = {}
         for loc in locations:
             entries = self.entries(loc)
+            if entries is None:
+                break
             files = self.module_files(entries, loc)
             directories = {
                 n
@@ -276,6 +288,10 @@ class Discovery:
                     continue
                 child = loc.child(name) if name in directories else None
                 child_entries = self.entries(child) if child else {}
+                if child_entries is None:
+                    # Do not guess whether an unvisited directory is a package
+                    # or namespace, or fall back to a same-named module.
+                    break
                 init = next(
                     (
                         "__init__" + s
