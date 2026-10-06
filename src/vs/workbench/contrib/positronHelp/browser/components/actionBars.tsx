@@ -75,11 +75,13 @@ const HelpSearch = () => {
 	}, [foregroundSession]);
 
 	useEffect(() => {
-		setTopics([]);
-		setActiveIndex(-1);
 		if (!focused || !foregroundSession || !query.trim()) {
+			setTopics([]);
+			setActiveIndex(-1);
 			return;
 		}
+		// Keep the current list during the debounce and request. Cleanup prevents
+		// a response for an earlier query or session from replacing it.
 		let cancelled = false;
 		let dispatched = false;
 		let timer: number | undefined;
@@ -102,6 +104,7 @@ const HelpSearch = () => {
 				const result = await promise;
 				if (!cancelled) {
 					setTopics(result);
+					setActiveIndex(-1);
 				}
 			} catch {
 				// Full search remains available when suggestions fail.
