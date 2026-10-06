@@ -303,6 +303,37 @@ describe('Help ActionBars', () => {
 			expect(showHelpTopicForForegroundSession).not.toHaveBeenCalled();
 		});
 
+		it.each(['switch', 'remove'])('ignores a response resolved in the same batch as a foreground session %s', async change => {
+			const { user, input } = await renderSuggestions();
+			const oldRequest = new DeferredPromise<Topics>();
+			getHelpTopics.mockReturnValueOnce(oldRequest.p);
+			await user.keyboard('.');
+			await advanceDebounce();
+			await user.keyboard('{ArrowDown}');
+			const newSession = change === 'switch' ? stubInterface<ILanguageRuntimeSession>({
+				sessionId: 'new-r-session',
+				getRuntimeState: () => RuntimeState.Idle,
+				onDidChangeRuntimeState: Event.None,
+				runtimeMetadata: session.runtimeMetadata,
+			}) : undefined;
+			await act(async () => {
+				foregroundEvents.fire(newSession);
+				await oldRequest.complete([{ label: 'old session', topic: 'old' }]);
+			});
+
+			expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+			expect(input).not.toHaveAttribute('aria-controls');
+			expect(input).not.toHaveAttribute('aria-activedescendant');
+			await advanceDebounce();
+			if (change === 'switch') {
+				expect(screen.getByRole('option', { name: /plot graphics/ })).toBeInTheDocument();
+				expect(screen.queryByRole('option', { name: 'old session' })).not.toBeInTheDocument();
+			} else {
+				expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+				expect(input).toBeDisabled();
+			}
+		});
+
 		it('ignores an old session response arriving after the new session results', async () => {
 			const { user, input } = await renderSuggestions();
 			const oldRequest = new DeferredPromise<Topics>();
